@@ -6,13 +6,16 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { BarChart } from 'react-native-chart-kit';
 import api from '../../api/api';
+import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { SIZES, SHADOWS } from '../../theme/theme';
 
 const screenWidth = Dimensions.get('window').width;
 
 export default function AnalyticsScreen() {
+  const { user } = useAuth();
   const { colors, isDark } = useTheme();
+  const isAdmin = user?.role === 'Admin';
   const styles = React.useMemo(() => getStyles(colors), [colors]);
 
   const StatCard = ({ emoji, label, value, color = colors.primary, bg = colors.primary + '15', width = '47%' }) => (
@@ -81,10 +84,10 @@ export default function AnalyticsScreen() {
         {/* ── Quick Management Menus ──────────────────────────────── */}
         <Text style={styles.sectionTitle}>Management Menu</Text>
         <View style={styles.actionGrid}>
-          <ActionButton emoji="👥" title="Manage Users" onPress={() => nav.navigate('UserManagement')} />
-          <ActionButton emoji="📋" title="All Bookings" onPress={() => nav.navigate('AllBookings')} />
-          <ActionButton emoji="🚗" title="Fleet Config" onPress={() => nav.navigate('FleetManagement')} />
-          <ActionButton emoji="⭐" title="Feedback"     onPress={() => nav.navigate('FeedbackModeration')} />
+          {isAdmin && <ActionButton emoji="👥" title="Manage Users" onPress={() => nav.navigate('UserManagement')} />}
+          {isAdmin && <ActionButton emoji="📋" title="All Bookings" onPress={() => nav.navigate('AllBookings')} />}
+          {isAdmin && <ActionButton emoji="🚗" title="Fleet Config" onPress={() => nav.navigate('FleetManagement')} />}
+          {isAdmin && <ActionButton emoji="⭐" title="Feedback"     onPress={() => nav.navigate('FeedbackModeration')} />}
           <ActionButton emoji="📄" title="Full Report"  onPress={() => nav.navigate('AdminReport')} />
         </View>
 

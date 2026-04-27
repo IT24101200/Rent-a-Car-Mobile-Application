@@ -27,7 +27,16 @@ export const AuthProvider = ({ children }) => {
              setUser(res.data);
              await AsyncStorage.setItem('user', JSON.stringify(res.data));
           } catch(err) {
-             console.warn('Network sync failed (offline-mode fallback).', err.message);
+             // If token is expired/invalid, force logout
+             if (err.response?.status === 401) {
+               console.warn('Token expired — clearing session.');
+               await AsyncStorage.removeItem('token');
+               await AsyncStorage.removeItem('user');
+               setToken(null);
+               setUser(null);
+             } else {
+               console.warn('Network sync failed (offline-mode fallback).', err.message);
+             }
           }
         }
       } catch (e) {

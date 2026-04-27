@@ -24,6 +24,12 @@ const vehicleSchema = new mongoose.Schema({
   isAvailable:      { type: Boolean, default: true },
   validationStatus: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' },
   owner:            { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+
+  // Validation tracking
+  rejectionReason:  { type: String, trim: true },
+  validationNote:   { type: String, trim: true },
+  validatedAt:      { type: Date },
+  validatedBy:      { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Vehicle', vehicleSchema);

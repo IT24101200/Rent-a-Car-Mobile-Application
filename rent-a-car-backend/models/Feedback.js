@@ -11,7 +11,11 @@ const feedbackSchema = new mongoose.Schema({
   ownerReply: {
     text:      { type: String, trim: true },
     repliedAt: { type: Date }
-  }
+  },
+
+  // Moderation
+  flagged:   { type: Boolean, default: false },
+  adminNote: { type: String, trim: true }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Feedback', feedbackSchema);

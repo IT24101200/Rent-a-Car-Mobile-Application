@@ -84,9 +84,10 @@ export default function HomeScreen({ navigation }) {
       const res = await api.get('/api/vehicles?status=accepted');
       setVehicles(res.data);
     } catch (err) {
+      console.error('Vehicle fetch error:', err.code, err.message, err.response?.status);
       setError(err.code === 'ECONNABORTED'
         ? 'Connection timed out. Is the server running?'
-        : 'Could not load vehicles. Check your connection.');
+        : `Could not load vehicles. (${err.code || err.message})`);
     } finally {
       setLoading(false);
       setRefreshing(false);

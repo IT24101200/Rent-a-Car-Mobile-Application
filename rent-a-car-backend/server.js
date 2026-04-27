@@ -13,6 +13,7 @@ const Vehicle  = require('./models/Vehicle');
 const User     = require('./models/User');
 const Booking  = require('./models/Booking');
 const Feedback = require('./models/Feedback');
+const Report   = require('./models/Report');
 
 const app = express();
 app.use(cors());
@@ -115,6 +116,29 @@ const ownerMiddleware = (req, res, next) => {
   }
 };
 
+// ── Staff Role Permission Map ──────────────────────────────────
+const STAFF_PERMISSIONS = {
+  'Booking Manager':            ['bookings'],
+  'Feedback Manager':           ['feedback'],
+  'Vehicle Manager':            ['fleet'],
+  'Vehicle Validation Manager': ['validation'],
+  'Payment Manager':            ['payments'],
+  'Report Handling Manager':    ['analytics', 'report'],
+};
+
+// Admin = full access, Staff = scoped access by staffRole
+const adminOrStaffMiddleware = (allowedScopes) => (req, res, next) => {
+  if (req.user?.role === 'Admin') return next();
+  
+  if (req.user?.role === 'Staff') {
+    const staffPerms = STAFF_PERMISSIONS[req.user.staffRole] || [];
+    const hasAccess = allowedScopes.some(s => staffPerms.includes(s));
+    if (hasAccess) return next();
+  }
+  
+  res.status(403).json({ message: 'Access denied. Insufficient permissions.' });
+};
+
 // ═══════════════════════════════════════════════════════════════════
 //  AUTH ROUTES
 // ═══════════════════════════════════════════════════════════════════
@@ -146,14 +170,14 @@ app.post('/api/auth/register', async (req, res) => {
     const user = await User.create({ name, email: email.toLowerCase(), password: hashedPassword, role: role || 'Customer' });
 
     const token = jwt.sign(
-      { id: user._id, name: user.name, email: user.email, role: user.role },
+      { id: user._id, name: user.name, email: user.email, role: user.role, staffRole: user.staffRole || null },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
     res.status(201).json({
       token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role },
+      user: { id: user._id, name: user.name, email: user.email, role: user.role, staffRole: user.staffRole || null },
     });
   } catch (err) {
     res.status(500).json({ message: 'Registration failed.', error: err.message });
@@ -180,14 +204,14 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(403).json({ message: 'Your account has been suspended by an Administrator.' });
 
     const token = jwt.sign(
-      { id: user._id, name: user.name, email: user.email, role: user.role },
+      { id: user._id, name: user.name, email: user.email, role: user.role, staffRole: user.staffRole || null },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
     res.json({
       token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role },
+      user: { id: user._id, name: user.name, email: user.email, role: user.role, staffRole: user.staffRole || null },
     });
   } catch (err) {
     res.status(500).json({ message: 'Login failed.', error: err.message });
@@ -214,14 +238,14 @@ app.put('/api/auth/profile', authMiddleware, async (req, res) => {
     );
 
     const token = jwt.sign(
-      { id: user._id, name: user.name, email: user.email, role: user.role },
+      { id: user._id, name: user.name, email: user.email, role: user.role, staffRole: user.staffRole || null },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
     res.json({
       token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role },
+      user: { id: user._id, name: user.name, email: user.email, role: user.role, staffRole: user.staffRole || null },
     });
   } catch (err) {
     res.status(500).json({ message: 'Failed to update profile.', error: err.message });
@@ -390,18 +414,25 @@ app.post('/api/vehicles', authMiddleware, uploadVehicleFiles, async (req, res) =
   }
 });
 
-// PATCH /api/vehicles/:id/status  — Admin accept/reject
-app.patch('/api/vehicles/:id/status', authMiddleware, async (req, res) => {
+// PATCH /api/vehicles/:id/status  — Admin accept/reject (with tracking)
+app.patch('/api/vehicles/:id/status', authMiddleware, adminOrStaffMiddleware(['validation']), async (req, res) => {
   try {
-    const { validationStatus } = req.body;
+    const { validationStatus, rejectionReason, validationNote } = req.body;
     if (!['accepted', 'rejected'].includes(validationStatus))
       return res.status(400).json({ message: 'Status must be accepted or rejected.' });
 
-    const vehicle = await Vehicle.findByIdAndUpdate(
-      req.params.id,
-      { validationStatus, isAvailable: validationStatus === 'accepted' },
-      { new: true }
-    );
+    const update = {
+      validationStatus,
+      isAvailable: validationStatus === 'accepted',
+      validatedAt: new Date(),
+      validatedBy: req.user.id,
+    };
+    if (validationStatus === 'rejected' && rejectionReason) update.rejectionReason = rejectionReason;
+    if (validationStatus === 'accepted') update.rejectionReason = '';
+    if (validationNote) update.validationNote = validationNote;
+
+    const vehicle = await Vehicle.findByIdAndUpdate(req.params.id, update, { new: true })
+      .populate('owner', 'name email').populate('validatedBy', 'name');
     if (!vehicle) return res.status(404).json({ message: 'Vehicle not found.' });
     res.json(vehicle);
   } catch (err) {
@@ -920,7 +951,7 @@ app.get('/api/owner/analytics', authMiddleware, ownerMiddleware, async (req, res
 });
 
 // GET /api/admin/analytics/report — full platform report
-app.get('/api/admin/analytics/report', authMiddleware, adminMiddleware, async (req, res) => {
+app.get('/api/admin/analytics/report', authMiddleware, adminOrStaffMiddleware(['analytics', 'report']), async (req, res) => {
   try {
     const [allBookings, allVehicles, allFeedbacks, allUsers] = await Promise.all([
       Booking.find().populate('vehicle', 'makeAndModel owner'),
@@ -1033,7 +1064,7 @@ app.get('/api/admin/analytics/report', authMiddleware, adminMiddleware, async (r
 // ═══════════════════════════════════════════════════════════════════
 
 // GET /api/analytics
-app.get('/api/analytics', authMiddleware, adminMiddleware, async (req, res) => {
+app.get('/api/analytics', authMiddleware, adminOrStaffMiddleware(['analytics', 'report']), async (req, res) => {
   try {
     const [bookings, vehicles, cancelledCount] = await Promise.all([
       Booking.find(),
@@ -1104,11 +1135,11 @@ app.delete('/api/admin/users/:id', authMiddleware, adminMiddleware, async (req, 
 });
 
 // GET /api/admin/bookings — List all platform bookings
-app.get('/api/admin/bookings', authMiddleware, adminMiddleware, async (req, res) => {
+app.get('/api/admin/bookings', authMiddleware, adminOrStaffMiddleware(['bookings', 'bookings-readonly']), async (req, res) => {
   try {
     const bookings = await Booking.find()
       .populate('user', 'name email')
-      .populate('vehicle', 'makeAndModel licensePlate pricePerDay owner')
+      .populate('vehicle', 'makeAndModel licensePlate pricePerDay type owner')
       .sort({ createdAt: -1 });
     res.json(bookings);
   } catch (err) {
@@ -1117,7 +1148,7 @@ app.get('/api/admin/bookings', authMiddleware, adminMiddleware, async (req, res)
 });
 
 // PATCH /api/admin/bookings/:id/force-cancel
-app.patch('/api/admin/bookings/:id/force-cancel', authMiddleware, adminMiddleware, async (req, res) => {
+app.patch('/api/admin/bookings/:id/force-cancel', authMiddleware, adminOrStaffMiddleware(['bookings']), async (req, res) => {
   try {
     const booking = await Booking.findByIdAndUpdate(
       req.params.id,
@@ -1130,14 +1161,212 @@ app.patch('/api/admin/bookings/:id/force-cancel', authMiddleware, adminMiddlewar
   }
 });
 
+// PATCH /api/admin/bookings/:id/status — Booking Manager manually changes status
+app.patch('/api/admin/bookings/:id/status', authMiddleware, adminOrStaffMiddleware(['bookings']), async (req, res) => {
+  try {
+    const { status } = req.body;
+    const validStatuses = ['pending', 'confirmed', 'active', 'returning', 'completed', 'cancelled'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: 'Invalid status. Valid: ' + validStatuses.join(', ') });
+    }
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ message: 'Booking not found.' });
+    const oldStatus = booking.status;
+    booking.status = status;
+    if (status === 'cancelled' && oldStatus !== 'cancelled') {
+      booking.refundStatus = 'pending';
+      booking.cancellationReason = booking.cancellationReason || 'Cancelled by Booking Manager';
+    }
+    await booking.save();
+    const populated = await Booking.findById(booking._id)
+      .populate('user', 'name email')
+      .populate('vehicle', 'makeAndModel licensePlate pricePerDay type owner');
+    res.json({ message: `Status changed: ${oldStatus} → ${status}`, booking: populated });
+  } catch (err) {
+    res.status(500).json({ message: 'Error updating booking status.', error: err.message });
+  }
+});
+
+// PATCH /api/admin/bookings/:id/reschedule — Booking Manager reschedules dates
+app.patch('/api/admin/bookings/:id/reschedule', authMiddleware, adminOrStaffMiddleware(['bookings']), async (req, res) => {
+  try {
+    const { startDate, endDate } = req.body;
+    if (!startDate || !endDate) return res.status(400).json({ message: 'startDate and endDate required.' });
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (end <= start) return res.status(400).json({ message: 'End date must be after start date.' });
+    const booking = await Booking.findById(req.params.id).populate('vehicle', 'pricePerDay');
+    if (!booking) return res.status(404).json({ message: 'Booking not found.' });
+    if (['completed', 'cancelled'].includes(booking.status)) {
+      return res.status(400).json({ message: 'Cannot reschedule a ' + booking.status + ' booking.' });
+    }
+    const conflict = await Booking.findOne({
+      _id: { $ne: booking._id }, vehicle: booking.vehicle._id,
+      status: { $nin: ['cancelled'] },
+      startDate: { $lt: end }, endDate: { $gt: start }
+    });
+    if (conflict) return res.status(409).json({ message: 'Date conflict with another booking.' });
+    const days = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
+    booking.startDate = start;
+    booking.endDate = end;
+    booking.totalPrice = days * (booking.vehicle.pricePerDay || 0);
+    await booking.save();
+    const populated = await Booking.findById(booking._id)
+      .populate('user', 'name email')
+      .populate('vehicle', 'makeAndModel licensePlate pricePerDay type owner');
+    res.json({ message: `Rescheduled. New total: Rs.${booking.totalPrice}`, booking: populated });
+  } catch (err) {
+    res.status(500).json({ message: 'Error rescheduling.', error: err.message });
+  }
+});
+
+// PATCH /api/admin/bookings/:id/refund — Update refund status
+app.patch('/api/admin/bookings/:id/refund', authMiddleware, adminOrStaffMiddleware(['bookings']), async (req, res) => {
+  try {
+    const { refundStatus } = req.body;
+    if (!['none', 'pending', 'issued'].includes(refundStatus)) {
+      return res.status(400).json({ message: 'Invalid refundStatus.' });
+    }
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ message: 'Booking not found.' });
+    booking.refundStatus = refundStatus;
+    await booking.save();
+    const populated = await Booking.findById(booking._id)
+      .populate('user', 'name email')
+      .populate('vehicle', 'makeAndModel licensePlate pricePerDay type owner');
+    res.json({ message: 'Refund status: ' + refundStatus, booking: populated });
+  } catch (err) {
+    res.status(500).json({ message: 'Error updating refund.', error: err.message });
+  }
+});
+
+// DELETE /api/admin/bookings/:id — Delete old booking record
+app.delete('/api/admin/bookings/:id', authMiddleware, adminOrStaffMiddleware(['bookings']), async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ message: 'Booking not found.' });
+    if (!['cancelled', 'completed'].includes(booking.status)) {
+      return res.status(400).json({ message: 'Only cancelled/completed bookings can be deleted.' });
+    }
+    await Booking.findByIdAndDelete(req.params.id);
+    await Feedback.deleteMany({ booking: req.params.id });
+    res.json({ message: 'Booking record deleted.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Error deleting booking.', error: err.message });
+  }
+});
+// GET /api/admin/vehicles — Full fleet list with owner info (all statuses)
+app.get('/api/admin/vehicles', authMiddleware, adminOrStaffMiddleware(['fleet', 'validation']), async (req, res) => {
+  try {
+    const vehicles = await Vehicle.find()
+      .populate('owner', 'name email')
+      .populate('validatedBy', 'name')
+      .sort({ createdAt: -1 });
+    res.json(vehicles);
+  } catch (err) {
+    res.status(500).json({ message: 'Error fetching fleet.', error: err.message });
+  }
+});
+
+// PATCH /api/admin/vehicles/:id — Edit vehicle details
+app.patch('/api/admin/vehicles/:id', authMiddleware, adminOrStaffMiddleware(['fleet']), async (req, res) => {
+  try {
+    const { pricePerDay, features, isAvailable } = req.body;
+    const vehicle = await Vehicle.findById(req.params.id);
+    if (!vehicle) return res.status(404).json({ message: 'Vehicle not found.' });
+
+    if (pricePerDay !== undefined) vehicle.pricePerDay = pricePerDay;
+    if (features !== undefined) vehicle.features = features;
+    if (isAvailable !== undefined) vehicle.isAvailable = isAvailable;
+    await vehicle.save();
+
+    const populated = await Vehicle.findById(vehicle._id).populate('owner', 'name email');
+    res.json({ message: 'Vehicle updated.', vehicle: populated });
+  } catch (err) {
+    res.status(500).json({ message: 'Error updating vehicle.', error: err.message });
+  }
+});
+
+// DELETE /api/admin/vehicles/:id — Delete vehicle (only if no active bookings)
+app.delete('/api/admin/vehicles/:id', authMiddleware, adminOrStaffMiddleware(['fleet']), async (req, res) => {
+  try {
+    const vehicle = await Vehicle.findById(req.params.id);
+    if (!vehicle) return res.status(404).json({ message: 'Vehicle not found.' });
+
+    const activeBookings = await Booking.countDocuments({
+      vehicle: req.params.id,
+      status: { $in: ['confirmed', 'active', 'returning'] }
+    });
+    if (activeBookings > 0) {
+      return res.status(400).json({ message: `Cannot delete — ${activeBookings} active booking(s) exist.` });
+    }
+
+    await Feedback.deleteMany({ vehicle: req.params.id });
+    await Booking.deleteMany({ vehicle: req.params.id, status: { $in: ['cancelled', 'completed'] } });
+    await Vehicle.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Vehicle and related records deleted.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Error deleting vehicle.', error: err.message });
+  }
+});
+
+// PATCH /api/admin/vehicles/:id/validation-note — Add/update validation note
+app.patch('/api/admin/vehicles/:id/validation-note', authMiddleware, adminOrStaffMiddleware(['validation']), async (req, res) => {
+  try {
+    const { validationNote } = req.body;
+    const vehicle = await Vehicle.findById(req.params.id);
+    if (!vehicle) return res.status(404).json({ message: 'Vehicle not found.' });
+    vehicle.validationNote = validationNote || '';
+    await vehicle.save();
+    const populated = await Vehicle.findById(vehicle._id).populate('owner', 'name email').populate('validatedBy', 'name');
+    res.json({ message: 'Validation note updated.', vehicle: populated });
+  } catch (err) {
+    res.status(500).json({ message: 'Error updating note.', error: err.message });
+  }
+});
+
+// GET /api/admin/payments — Payment-focused booking list
+app.get('/api/admin/payments', authMiddleware, adminOrStaffMiddleware(['payments']), async (req, res) => {
+  try {
+    const bookings = await Booking.find()
+      .populate('user', 'name email')
+      .populate('vehicle', 'makeAndModel licensePlate type')
+      .sort({ createdAt: -1 });
+    res.json(bookings);
+  } catch (err) {
+    res.status(500).json({ message: 'Error fetching payments.', error: err.message });
+  }
+});
+
+// PATCH /api/admin/payments/:id/refund — Issue or revoke refund
+app.patch('/api/admin/payments/:id/refund', authMiddleware, adminOrStaffMiddleware(['payments']), async (req, res) => {
+  try {
+    const { refundStatus } = req.body;
+    if (!['none', 'pending', 'issued'].includes(refundStatus))
+      return res.status(400).json({ message: 'Invalid refund status.' });
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ message: 'Booking not found.' });
+    booking.refundStatus = refundStatus;
+    if (refundStatus === 'issued') booking.paymentStatus = 'refunded';
+    else if (refundStatus === 'none') booking.paymentStatus = 'paid';
+    await booking.save();
+    const populated = await Booking.findById(booking._id)
+      .populate('user', 'name email').populate('vehicle', 'makeAndModel licensePlate type');
+    res.json({ message: `Refund ${refundStatus}.`, booking: populated });
+  } catch (err) {
+    res.status(500).json({ message: 'Error updating refund.', error: err.message });
+  }
+});
+
 // GET /api/admin/feedback — List all feedbacks
-app.get('/api/admin/feedback', authMiddleware, adminMiddleware, async (req, res) => {
+app.get('/api/admin/feedback', authMiddleware, adminOrStaffMiddleware(['feedback']), async (req, res) => {
   try {
     const feedback = await Feedback.find()
       .populate('user', 'name email')
+      .populate('vehicle', 'makeAndModel licensePlate')
       .populate({
         path: 'booking',
-        populate: { path: 'vehicle', select: 'makeAndModel' }
+        populate: { path: 'vehicle', select: 'makeAndModel licensePlate' }
       })
       .sort({ createdAt: -1 });
     res.json(feedback);
@@ -1147,12 +1376,181 @@ app.get('/api/admin/feedback', authMiddleware, adminMiddleware, async (req, res)
 });
 
 // DELETE /api/admin/feedback/:id — Delete review
-app.delete('/api/admin/feedback/:id', authMiddleware, adminMiddleware, async (req, res) => {
+app.delete('/api/admin/feedback/:id', authMiddleware, adminOrStaffMiddleware(['feedback']), async (req, res) => {
   try {
     await Feedback.findByIdAndDelete(req.params.id);
     res.json({ message: 'Feedback removed successfully.' });
   } catch (err) {
     res.status(500).json({ message: 'Error removing feedback.', error: err.message });
+  }
+});
+
+// PATCH /api/admin/feedback/:id/flag — Toggle flag on feedback
+app.patch('/api/admin/feedback/:id/flag', authMiddleware, adminOrStaffMiddleware(['feedback']), async (req, res) => {
+  try {
+    const fb = await Feedback.findById(req.params.id);
+    if (!fb) return res.status(404).json({ message: 'Feedback not found.' });
+    fb.flagged = !fb.flagged;
+    await fb.save();
+    const populated = await Feedback.findById(fb._id)
+      .populate('user', 'name email')
+      .populate('vehicle', 'makeAndModel licensePlate')
+      .populate({ path: 'booking', populate: { path: 'vehicle', select: 'makeAndModel licensePlate' } });
+    res.json({ message: `Feedback ${fb.flagged ? 'flagged' : 'unflagged'}.`, feedback: populated });
+  } catch (err) {
+    res.status(500).json({ message: 'Error toggling flag.', error: err.message });
+  }
+});
+
+// PATCH /api/admin/feedback/:id/note — Add/update admin note
+app.patch('/api/admin/feedback/:id/note', authMiddleware, adminOrStaffMiddleware(['feedback']), async (req, res) => {
+  try {
+    const { adminNote } = req.body;
+    const fb = await Feedback.findById(req.params.id);
+    if (!fb) return res.status(404).json({ message: 'Feedback not found.' });
+    fb.adminNote = adminNote || '';
+    await fb.save();
+    const populated = await Feedback.findById(fb._id)
+      .populate('user', 'name email')
+      .populate('vehicle', 'makeAndModel licensePlate')
+      .populate({ path: 'booking', populate: { path: 'vehicle', select: 'makeAndModel licensePlate' } });
+    res.json({ message: 'Admin note updated.', feedback: populated });
+  } catch (err) {
+    res.status(500).json({ message: 'Error updating note.', error: err.message });
+  }
+});
+
+// ── Report CRUD (Saved Reports) ───────────────────────────────────────
+
+// POST /api/admin/reports — Create report with live data snapshot
+app.post('/api/admin/reports', authMiddleware, adminOrStaffMiddleware(['report']), async (req, res) => {
+  try {
+    const { title, type, notes } = req.body;
+    if (!title) return res.status(400).json({ message: 'Title is required.' });
+
+    // Capture live snapshot
+    const [allBookings, allVehicles, allFeedbacks, allUsers] = await Promise.all([
+      Booking.find().populate('vehicle', 'makeAndModel owner'),
+      Vehicle.find(),
+      Feedback.find().populate('vehicle', 'makeAndModel'),
+      User.find(),
+    ]);
+
+    const totalRevenue = allBookings.filter(b => b.status !== 'cancelled').reduce((s, b) => s + (b.totalPrice || 0), 0);
+    const statusBreakdown = {};
+    allBookings.forEach(b => { statusBreakdown[b.status] = (statusBreakdown[b.status] || 0) + 1; });
+
+    const monthlyRevenue = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const label = d.toLocaleString('en', { month: 'short' });
+      const amount = allBookings.filter(b => {
+        const bd = new Date(b.createdAt);
+        return bd.getMonth() === d.getMonth() && bd.getFullYear() === d.getFullYear() && b.status !== 'cancelled';
+      }).reduce((s, b) => s + (b.totalPrice || 0), 0);
+      monthlyRevenue.push({ label, amount });
+    }
+
+    const vehIncome = {};
+    allBookings.filter(b => b.status !== 'cancelled').forEach(b => {
+      if (b.vehicle) { const n = b.vehicle.makeAndModel || 'Unknown'; vehIncome[n] = (vehIncome[n] || 0) + (b.totalPrice || 0); }
+    });
+    const topEarners = Object.entries(vehIncome).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, income]) => ({ name, income }));
+
+    const vehRatings = {};
+    allFeedbacks.forEach(f => {
+      if (f.vehicle) {
+        const n = f.vehicle.makeAndModel || 'Unknown';
+        if (!vehRatings[n]) vehRatings[n] = [];
+        vehRatings[n].push(f.rating);
+      }
+    });
+    const topRated = Object.entries(vehRatings).map(([name, rs]) => ({
+      name, avg: parseFloat((rs.reduce((s, r) => s + r, 0) / rs.length).toFixed(1)), count: rs.length
+    })).sort((a, b) => b.avg - a.avg).slice(0, 5);
+
+    const ratingDist = [0, 0, 0, 0, 0];
+    allFeedbacks.forEach(f => { if (f.rating >= 1 && f.rating <= 5) ratingDist[f.rating - 1]++; });
+
+    const owners = allUsers.filter(u => u.role === 'Car Owner');
+    const ownerPerformance = owners.map(o => {
+      const oVehicles = allVehicles.filter(v => v.owner && v.owner.toString() === o._id.toString());
+      const oVehicleIds = oVehicles.map(v => v._id.toString());
+      const oBookings = allBookings.filter(b => b.vehicle && oVehicleIds.includes(b.vehicle._id ? b.vehicle._id.toString() : b.vehicle.toString()));
+      const oFeedbacks = allFeedbacks.filter(f => f.vehicle && oVehicleIds.includes(f.vehicle._id ? f.vehicle._id.toString() : f.vehicle.toString()));
+      return {
+        name: o.name, email: o.email, vehicleCount: oVehicles.length,
+        totalIncome: oBookings.filter(b => b.status !== 'cancelled').reduce((s, b) => s + (b.totalPrice || 0), 0),
+        avgRating: oFeedbacks.length > 0 ? parseFloat((oFeedbacks.reduce((s, f) => s + f.rating, 0) / oFeedbacks.length).toFixed(1)) : null
+      };
+    }).filter(o => o.vehicleCount > 0);
+
+    const platformAvgRating = allFeedbacks.length > 0
+      ? parseFloat((allFeedbacks.reduce((s, f) => s + f.rating, 0) / allFeedbacks.length).toFixed(1)) : null;
+
+    const report = await Report.create({
+      title, type: type || 'full', notes: notes || '',
+      createdBy: req.user.id,
+      snapshot: {
+        totalRevenue, totalBookings: allBookings.length, totalVehicles: allVehicles.length,
+        totalUsers: allUsers.length, platformAvgRating, totalReviews: allFeedbacks.length,
+        statusBreakdown, topEarners, topRated, monthlyRevenue, ratingDist, ownerPerformance
+      }
+    });
+    const populated = await Report.findById(report._id).populate('createdBy', 'name');
+    res.status(201).json(populated);
+  } catch (err) {
+    res.status(500).json({ message: 'Error creating report.', error: err.message });
+  }
+});
+
+// GET /api/admin/reports — List all saved reports
+app.get('/api/admin/reports', authMiddleware, adminOrStaffMiddleware(['report']), async (req, res) => {
+  try {
+    const reports = await Report.find()
+      .populate('createdBy', 'name')
+      .sort({ createdAt: -1 });
+    res.json(reports);
+  } catch (err) {
+    res.status(500).json({ message: 'Error fetching reports.', error: err.message });
+  }
+});
+
+// GET /api/admin/reports/:id — Get single report
+app.get('/api/admin/reports/:id', authMiddleware, adminOrStaffMiddleware(['report']), async (req, res) => {
+  try {
+    const report = await Report.findById(req.params.id).populate('createdBy', 'name');
+    if (!report) return res.status(404).json({ message: 'Report not found.' });
+    res.json(report);
+  } catch (err) {
+    res.status(500).json({ message: 'Error fetching report.', error: err.message });
+  }
+});
+
+// PATCH /api/admin/reports/:id — Update title/notes
+app.patch('/api/admin/reports/:id', authMiddleware, adminOrStaffMiddleware(['report']), async (req, res) => {
+  try {
+    const { title, notes } = req.body;
+    const report = await Report.findById(req.params.id);
+    if (!report) return res.status(404).json({ message: 'Report not found.' });
+    if (title) report.title = title;
+    if (notes !== undefined) report.notes = notes;
+    await report.save();
+    const populated = await Report.findById(report._id).populate('createdBy', 'name');
+    res.json({ message: 'Report updated.', report: populated });
+  } catch (err) {
+    res.status(500).json({ message: 'Error updating report.', error: err.message });
+  }
+});
+
+// DELETE /api/admin/reports/:id — Delete report
+app.delete('/api/admin/reports/:id', authMiddleware, adminOrStaffMiddleware(['report']), async (req, res) => {
+  try {
+    await Report.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Report deleted.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Error deleting report.', error: err.message });
   }
 });
 
@@ -1188,5 +1586,65 @@ cron.schedule('*/15 * * * *', async () => {
 });
 
 // ── Start Server ────────────────────────────────────────────────────
+// POST /api/admin/staff — Admin creates a new staff account
+app.post('/api/admin/staff', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { name, email, password, staffRole } = req.body;
+    const validRoles = ['Booking Manager', 'Feedback Manager', 'Vehicle Manager', 'Vehicle Validation Manager', 'Payment Manager', 'Report Handling Manager'];
+
+    if (!name || !email || !password || !staffRole) {
+      return res.status(400).json({ message: 'Name, email, password, and staff role are required.' });
+    }
+    if (!validRoles.includes(staffRole)) {
+      return res.status(400).json({ message: 'Invalid staff role.' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters.' });
+    }
+
+    const existing = await User.findOne({ email: email.toLowerCase() });
+    if (existing) {
+      return res.status(409).json({ message: 'A user with this email already exists.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = new User({ name, email: email.toLowerCase(), password: hashedPassword, role: 'Staff', staffRole, status: 'active' });
+    await user.save();
+
+    res.status(201).json({ message: `Staff member "${name}" created as ${staffRole}.`, user: { id: user._id, name: user.name, email: user.email, role: user.role, staffRole: user.staffRole } });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to create staff member.', error: err.message });
+  }
+});
+
+// PATCH /api/admin/users/:id/staff-role — Admin assigns/revokes staff role
+app.patch('/api/admin/users/:id/staff-role', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { staffRole } = req.body; // null or '' to revoke
+    const validRoles = ['Booking Manager', 'Feedback Manager', 'Vehicle Manager', 'Vehicle Validation Manager', 'Payment Manager', 'Report Handling Manager'];
+    
+    if (staffRole && !validRoles.includes(staffRole)) {
+      return res.status(400).json({ message: 'Invalid staff role.' });
+    }
+
+    // Check current user — block if Car Owner
+    const existingUser = await User.findById(req.params.id);
+    if (!existingUser) return res.status(404).json({ message: 'User not found.' });
+    if (existingUser.role === 'Car Owner') {
+      return res.status(400).json({ message: 'Cannot assign staff role to a Car Owner. Create a dedicated staff account instead.' });
+    }
+
+    const update = staffRole
+      ? { role: 'Staff', staffRole }
+      : { role: 'Customer', staffRole: null };
+
+    const user = await User.findByIdAndUpdate(req.params.id, update, { new: true }).select('-password');
+    
+    res.json({ message: staffRole ? `User promoted to ${staffRole}.` : 'Staff role revoked.', user });
+  } catch (err) {
+    res.status(500).json({ message: 'Error updating staff role.', error: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

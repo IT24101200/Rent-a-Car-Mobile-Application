@@ -30,6 +30,8 @@ import FleetManagementScreen    from './src/screens/admin/FleetManagementScreen'
 import AllBookingsScreen        from './src/screens/admin/AllBookingsScreen';
 import FeedbackModerationScreen from './src/screens/admin/FeedbackModerationScreen';
 import AdminReportScreen        from './src/screens/admin/AdminReportScreen';
+import PaymentManagerScreen     from './src/screens/admin/PaymentManagerScreen';
+import ReportManagerScreen      from './src/screens/admin/ReportManagerScreen';
 
 // Booking Screens
 import BookingScreen from './src/screens/booking/BookingScreen';
@@ -118,6 +120,44 @@ function AdminTabs() {
   );
 }
 
+// ── Staff Tabs (dynamic based on staffRole) ───────────────────
+function StaffTabs() {
+  const { user } = useAuth();
+  const { colors } = useTheme();
+  const role = user?.staffRole;
+
+  return (
+    <Tab.Navigator screenOptions={baseTabOptions(colors)}>
+      {role === 'Booking Manager' && (
+        <Tab.Screen name="Bookings" component={AllBookingsScreen}
+          options={{ tabBarIcon: (p) => <TabIcon emoji="📋" {...p} />, title: 'Bookings' }} />
+      )}
+      {role === 'Feedback Manager' && (
+        <Tab.Screen name="Feedback" component={FeedbackModerationScreen}
+          options={{ tabBarIcon: (p) => <TabIcon emoji="⭐" {...p} />, title: 'Feedback' }} />
+      )}
+      {role === 'Vehicle Manager' && (
+        <Tab.Screen name="Fleet" component={FleetManagementScreen}
+          options={{ tabBarIcon: (p) => <TabIcon emoji="🚗" {...p} />, title: 'Fleet' }} />
+      )}
+      {role === 'Vehicle Validation Manager' && (
+        <Tab.Screen name="Approvals" component={AdminDashboard}
+          options={{ tabBarIcon: (p) => <TabIcon emoji="🛡️" {...p} />, title: 'Approvals' }} />
+      )}
+      {role === 'Payment Manager' && (
+        <Tab.Screen name="Payments" component={PaymentManagerScreen}
+          options={{ tabBarIcon: (p) => <TabIcon emoji="💰" {...p} />, title: 'Payments' }} />
+      )}
+      {role === 'Report Handling Manager' && (
+        <Tab.Screen name="Analytics" component={ReportManagerScreen}
+          options={{ tabBarIcon: (p) => <TabIcon emoji="📊" {...p} />, title: 'Reports' }} />
+      )}
+      <Tab.Screen name="Profile" component={ProfileScreen}
+        options={{ tabBarIcon: (p) => <TabIcon emoji="👤" {...p} />, title: 'Profile' }} />
+    </Tab.Navigator>
+  );
+}
+
 // ── Root Navigator ─────────────────────────────────────────────────
 function RootNavigator() {
   const { user, loading } = useAuth();
@@ -133,6 +173,8 @@ function RootNavigator() {
 
   const MainTabs = user?.role === 'Admin'
     ? AdminTabs
+    : user?.role === 'Staff'
+    ? StaffTabs
     : user?.role === 'Car Owner'
     ? CarOwnerTabs
     : CustomerTabs;
@@ -163,7 +205,7 @@ function RootNavigator() {
           <Stack.Screen name="AddVehicle" component={AddVehicleScreen} options={{ ...stackHeaderOptions, title: 'Add to Fleet' }} />
           
           {/* Admin Management Screens (Restricted Route) */}
-          {user?.role === 'Admin' && (
+          {(user?.role === 'Admin' || user?.role === 'Staff') && (
             <>
               <Stack.Screen name="FleetManagement" component={FleetManagementScreen} options={{ ...stackHeaderOptions, title: 'Manage Fleet' }} />
               <Stack.Screen name="AllBookings" component={AllBookingsScreen} options={{ ...stackHeaderOptions, title: 'Platform Bookings' }} />

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Alert, RefreshControl, StatusBar
+  ActivityIndicator, Alert, RefreshControl, StatusBar, Modal, ScrollView, TextInput, Platform
 } from 'react-native';
 import api from '../../api/api';
 import { useTheme } from '../../context/ThemeContext';
@@ -15,6 +15,64 @@ export default function UserManagementScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionId, setActionId] = useState(null);
+  const [staffModalUser, setStaffModalUser] = useState(null); // user object for staff assignment modal
+  const [detailUser, setDetailUser] = useState(null); // user detail modal
+  const [section, setSection] = useState('customers'); // 'customers' | 'staff'
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [newStaffName, setNewStaffName] = useState('');
+  const [newStaffEmail, setNewStaffEmail] = useState('');
+  const [newStaffPassword, setNewStaffPassword] = useState('');
+  const [newStaffRole, setNewStaffRole] = useState(null);
+
+  const STAFF_ROLES = [
+    { key: 'Booking Manager', emoji: '📋', desc: 'Manage all bookings & force-cancel' },
+    { key: 'Feedback Manager', emoji: '⭐', desc: 'Moderate customer reviews' },
+    { key: 'Vehicle Manager', emoji: '🚗', desc: 'View & manage entire fleet' },
+    { key: 'Vehicle Validation Manager', emoji: '🛡️', desc: 'Approve/reject pending vehicles' },
+    { key: 'Payment Manager', emoji: '💰', desc: 'View booking payments (read-only)' },
+    { key: 'Report Handling Manager', emoji: '📄', desc: 'Analytics & platform reports' },
+  ];
+
+  const assignStaffRole = async (userId, staffRole) => {
+    setActionId(`staff-${userId}`);
+    try {
+      const res = await api.patch(`/api/admin/users/${userId}/staff-role`, { staffRole });
+      const updatedUser = res.data.user;
+      setUsers(prev => prev.map(u => u._id === userId ? { ...u, role: updatedUser.role, staffRole: updatedUser.staffRole } : u));
+      Alert.alert('Success', res.data.message);
+      setStaffModalUser(null);
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.message || 'Failed to assign staff role.');
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const createStaffMember = async () => {
+    if (!newStaffName.trim() || !newStaffEmail.trim() || !newStaffPassword.trim() || !newStaffRole) {
+      return Alert.alert('Missing Fields', 'Please fill in all fields and select a role.');
+    }
+    if (newStaffPassword.length < 6) {
+      return Alert.alert('Weak Password', 'Password must be at least 6 characters.');
+    }
+    setActionId('creating-staff');
+    try {
+      const res = await api.post('/api/admin/staff', {
+        name: newStaffName.trim(),
+        email: newStaffEmail.trim(),
+        password: newStaffPassword,
+        staffRole: newStaffRole,
+      });
+      Alert.alert('Success', res.data.message);
+      setCreateModalVisible(false);
+      setNewStaffName(''); setNewStaffEmail(''); setNewStaffPassword(''); setNewStaffRole(null);
+      fetchUsers(true); // Refresh list
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.message || 'Failed to create staff member.');
+    } finally {
+      setActionId(null);
+    }
+  };
 
   const fetchUsers = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -115,34 +173,56 @@ export default function UserManagementScreen() {
 
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={colors.primary} /></View>;
 
+  const customerUsers = users.filter(u => u.role === 'Customer' || u.role === 'Car Owner');
+  const staffUsers = users.filter(u => u.role === 'Staff');
+  const displayedUsers = section === 'staff' ? staffUsers : customerUsers;
+
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor={colors.headerGradientStart} />
       <FlatList
-        data={users}
+        data={displayedUsers}
         keyExtractor={item => item._id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchUsers(true)} tintColor={colors.primary} />}
         contentContainerStyle={styles.list}
         ListHeaderComponent={
-          <View style={styles.greenHeader}>
-            <Text style={styles.title}>Users</Text>
-            <Text style={styles.subtitle}>{users.length} registered accounts</Text>
+          <View>
+            <View style={styles.greenHeader}>
+              <Text style={styles.title}>User Management</Text>
+              <Text style={styles.subtitle}>{users.length} total accounts</Text>
+            </View>
+            <View style={styles.sectionRow}>
+              <TouchableOpacity
+                style={[styles.sectionTab, section === 'customers' && styles.sectionTabActive]}
+                onPress={() => setSection('customers')}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.sectionTabTxt, section === 'customers' && styles.sectionTabTxtActive]}>👥 Customers ({customerUsers.length})</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sectionTab, section === 'staff' && styles.sectionTabActive]}
+                onPress={() => setSection('staff')}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.sectionTabTxt, section === 'staff' && styles.sectionTabTxtActive]}>🔧 Staff ({staffUsers.length})</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         }
         ListEmptyComponent={
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyEmoji}>👥</Text>
-            <Text style={styles.emptyTitle}>No Users</Text>
-            <Text style={styles.emptySub}>No users found in the system.</Text>
+            <Text style={styles.emptyEmoji}>{section === 'staff' ? '🔧' : '👥'}</Text>
+            <Text style={styles.emptyTitle}>No {section === 'staff' ? 'Staff Members' : 'Customers'}</Text>
+            <Text style={styles.emptySub}>{section === 'staff' ? 'Tap "+ Add Staff" to create a staff member.' : 'No customers have registered yet.'}</Text>
           </View>
         }
         renderItem={({ item }) => (
-          <View style={[styles.card, item.status === 'suspended' && styles.cardSuspended]}>
+          <TouchableOpacity style={[styles.card, item.status === 'suspended' && styles.cardSuspended]} activeOpacity={0.85} onPress={() => setDetailUser(item)}>
             <View style={styles.headerRow}>
               <Text style={styles.name}>{item.name}</Text>
-              <View style={[styles.roleBadge, item.role === 'Car Owner' ? styles.ownerBg : styles.custBg]}>
-                <Text style={[styles.roleText, item.role === 'Car Owner' ? styles.ownerColor : styles.custColor]}>
-                  {item.role}
+              <View style={[styles.roleBadge, item.role === 'Staff' ? styles.staffBg : item.role === 'Car Owner' ? styles.ownerBg : styles.custBg]}>
+                <Text style={[styles.roleText, item.role === 'Staff' ? styles.staffColor : item.role === 'Car Owner' ? styles.ownerColor : styles.custColor]}>
+                  {item.role === 'Staff' ? item.staffRole || 'Staff' : item.role}
                 </Text>
               </View>
             </View>
@@ -191,15 +271,27 @@ export default function UserManagementScreen() {
               </View>
             )}
 
-            {/* Advanced Admin Actions Block */}
+            {/* Staff Role — only show for existing Staff users */}
+            {item.role === 'Staff' && (
+              <View style={styles.staffAssignRow}>
+                 <TouchableOpacity
+                    style={[styles.btn, { backgroundColor: colors.primary + '12', borderWidth: 1, borderColor: colors.primary + '30', flex: 1, alignItems: 'center' }]}
+                    onPress={() => setStaffModalUser(item)}
+                    activeOpacity={0.8}
+                 >
+                   <Text style={[styles.btnText, {color: colors.primary}]}>🔧 Change Staff Role</Text>
+                 </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Admin Actions Block */}
             <View style={styles.advancedRow}>
                <TouchableOpacity 
-                  style={[styles.btn, { backgroundColor: colors.surfaceHighlight, borderWidth: 1, borderColor: colors.border, flex: 1, alignItems: 'center' }, actionId === `promote-${item._id}` && {opacity:0.5}]}
-                  onPress={() => promoteToAdmin(item._id, item.name)}
-                  disabled={!!actionId}
+                  style={[styles.btn, { backgroundColor: colors.surfaceHighlight, borderWidth: 1, borderColor: colors.border, flex: 1, alignItems: 'center' }]}
+                  onPress={() => setDetailUser(item)}
                   activeOpacity={0.8}
                >
-                 {actionId === `promote-${item._id}` ? <ActivityIndicator size="small" color={colors.primary} /> : <Text style={[styles.btnText, {color: colors.primary}]}>👑 Make Admin</Text>}
+                 <Text style={[styles.btnText, {color: colors.primary}]}>👁️ View Details</Text>
                </TouchableOpacity>
                
                <View style={{width: 12}} />
@@ -214,9 +306,195 @@ export default function UserManagementScreen() {
                </TouchableOpacity>
             </View>
 
-          </View>
+          </TouchableOpacity>
         )}
       />
+      {/* User Detail Modal */}
+      <Modal visible={!!detailUser} transparent animationType="slide" onRequestClose={() => setDetailUser(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <ScrollView>
+              <Text style={styles.modalTitle}>👤 User Details</Text>
+              {detailUser && (<>
+                <View style={[styles.roleBadge, detailUser.role === 'Staff' ? styles.staffBg : detailUser.role === 'Car Owner' ? styles.ownerBg : styles.custBg, {alignSelf:'flex-start', marginTop:12, marginBottom:16}]}>
+                  <Text style={[styles.roleText, detailUser.role === 'Staff' ? styles.staffColor : detailUser.role === 'Car Owner' ? styles.ownerColor : styles.custColor]}>
+                    {detailUser.role === 'Staff' ? detailUser.staffRole || 'Staff' : detailUser.role}
+                  </Text>
+                </View>
+
+                <Text style={styles.dlLabel}>Full Name</Text>
+                <Text style={styles.dlValue}>{detailUser.name}</Text>
+
+                <Text style={styles.dlLabel}>Email Address</Text>
+                <Text style={styles.dlValue}>{detailUser.email}</Text>
+
+                <Text style={styles.dlLabel}>Account Status</Text>
+                <Text style={[styles.dlValue, {color: detailUser.status === 'active' ? colors.success : colors.error, fontWeight:'800'}]}>
+                  {detailUser.status === 'active' ? '✅ Active' : '🚫 Suspended'}
+                </Text>
+
+                <Text style={styles.dlLabel}>Role</Text>
+                <Text style={styles.dlValue}>{detailUser.role}</Text>
+
+                {detailUser.role === 'Staff' && detailUser.staffRole && (<>
+                  <Text style={styles.dlLabel}>Staff Role</Text>
+                  <Text style={[styles.dlValue, {color: '#7C3AED', fontWeight:'800'}]}>🔧 {detailUser.staffRole}</Text>
+                </>)}
+
+                {detailUser.identity && (<>
+                  <Text style={styles.dlLabel}>KYC Verification</Text>
+                  <Text style={[styles.dlValue, {color: detailUser.identity.status === 'verified' ? colors.success : detailUser.identity.status === 'pending' ? colors.warning : colors.textSecondary, fontWeight:'800'}]}>
+                    {detailUser.identity.status === 'verified' ? '✅ Verified' : detailUser.identity.status === 'pending' ? '⏳ Pending Review' : '❌ ' + (detailUser.identity.status || 'Unverified')}
+                  </Text>
+                </>)}
+
+                <Text style={styles.dlLabel}>User ID</Text>
+                <Text style={[styles.dlValue, {fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize:12}]}>{detailUser._id}</Text>
+
+                {detailUser.createdAt && (<>
+                  <Text style={styles.dlLabel}>Account Created</Text>
+                  <Text style={styles.dlValue}>{new Date(detailUser.createdAt).toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'})}</Text>
+                </>)}
+              </>)}
+            </ScrollView>
+            <TouchableOpacity style={styles.modalCancel} onPress={() => setDetailUser(null)}>
+              <Text style={styles.modalCancelText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Staff Role Assignment Modal */}
+      <Modal visible={!!staffModalUser} transparent animationType="slide" onRequestClose={() => setStaffModalUser(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>🔧 Assign Staff Role</Text>
+            <Text style={styles.modalSubtitle}>for {staffModalUser?.name}</Text>
+            
+            <ScrollView style={{ maxHeight: 400, marginTop: 16 }}>
+              {STAFF_ROLES.map(r => (
+                <TouchableOpacity
+                  key={r.key}
+                  style={[styles.roleOption, staffModalUser?.staffRole === r.key && styles.roleOptionActive]}
+                  onPress={() => assignStaffRole(staffModalUser._id, r.key)}
+                  disabled={!!actionId}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.roleOptionEmoji}>{r.emoji}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.roleOptionTitle, staffModalUser?.staffRole === r.key && { color: colors.primary }]}>{r.key}</Text>
+                    <Text style={styles.roleOptionDesc}>{r.desc}</Text>
+                  </View>
+                  {staffModalUser?.staffRole === r.key && <Text style={{ color: colors.primary, fontWeight: '900' }}>✓</Text>}
+                </TouchableOpacity>
+              ))}
+
+              {/* Revoke option */}
+              {staffModalUser?.role === 'Staff' && (
+                <TouchableOpacity
+                  style={[styles.roleOption, { borderColor: colors.error + '30' }]}
+                  onPress={() => assignStaffRole(staffModalUser._id, null)}
+                  disabled={!!actionId}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.roleOptionEmoji}>🚫</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.roleOptionTitle, { color: colors.error }]}>Revoke Staff Role</Text>
+                    <Text style={styles.roleOptionDesc}>Demote back to Customer</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+
+            <TouchableOpacity style={styles.modalCancel} onPress={() => setStaffModalUser(null)}>
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      {/* Create Staff Member Modal */}
+      <Modal visible={createModalVisible} transparent animationType="slide" onRequestClose={() => setCreateModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>➕ Create Staff Member</Text>
+            <Text style={styles.modalSubtitle}>Create a new dedicated staff account</Text>
+
+            <ScrollView style={{ marginTop: 16 }} keyboardShouldPersistTaps="handled">
+              <Text style={styles.inputLabel}>Full Name</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Enter full name"
+                placeholderTextColor={colors.textMuted}
+                value={newStaffName}
+                onChangeText={setNewStaffName}
+              />
+
+              <Text style={styles.inputLabel}>Email Address</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Enter email"
+                placeholderTextColor={colors.textMuted}
+                value={newStaffEmail}
+                onChangeText={setNewStaffEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+
+              <Text style={styles.inputLabel}>Password</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Min 6 characters"
+                placeholderTextColor={colors.textMuted}
+                value={newStaffPassword}
+                onChangeText={setNewStaffPassword}
+                secureTextEntry
+              />
+
+              <Text style={[styles.inputLabel, { marginTop: 8 }]}>Select Staff Role</Text>
+              {STAFF_ROLES.map(r => (
+                <TouchableOpacity
+                  key={r.key}
+                  style={[styles.roleOption, newStaffRole === r.key && styles.roleOptionActive]}
+                  onPress={() => setNewStaffRole(r.key)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.roleOptionEmoji}>{r.emoji}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.roleOptionTitle, newStaffRole === r.key && { color: colors.primary }]}>{r.key}</Text>
+                    <Text style={styles.roleOptionDesc}>{r.desc}</Text>
+                  </View>
+                  {newStaffRole === r.key && <Text style={{ color: colors.primary, fontWeight: '900', fontSize: 18 }}>✓</Text>}
+                </TouchableOpacity>
+              ))}
+
+              <TouchableOpacity
+                style={[styles.createBtn, (!newStaffName || !newStaffEmail || !newStaffPassword || !newStaffRole || actionId === 'creating-staff') && { opacity: 0.5 }]}
+                onPress={createStaffMember}
+                disabled={!newStaffName || !newStaffEmail || !newStaffPassword || !newStaffRole || actionId === 'creating-staff'}
+                activeOpacity={0.8}
+              >
+                {actionId === 'creating-staff'
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={styles.createBtnText}>✅ Create Staff Member</Text>
+                }
+              </TouchableOpacity>
+            </ScrollView>
+
+            <TouchableOpacity style={styles.modalCancel} onPress={() => { setCreateModalVisible(false); setNewStaffRole(null); }}>
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Floating Action Button */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => setCreateModalVisible(true)}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.fabText}>➕ Add Staff</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -261,4 +539,39 @@ const getStyles = (C) => StyleSheet.create({
   emptyEmoji:    { fontSize: 60, marginBottom: 16 },
   emptyTitle:    { fontSize: 22, fontWeight: '900', color: C.textPrimary, letterSpacing: -0.5 },
   emptySub:      { color: C.textSecondary, marginTop: 8, textAlign: 'center', fontWeight: '500', fontSize: 15, lineHeight: 22 },
+
+  staffBg:       { backgroundColor: '#7C3AED15' },
+  staffColor:    { color: '#7C3AED', fontWeight: '800', fontSize: 10, letterSpacing: 0.3, textTransform: 'uppercase' },
+  staffAssignRow: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.border, marginTop: 16, paddingTop: 16 },
+
+  modalOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
+  modalContent:  { backgroundColor: C.surface, borderRadius: 20, padding: 24, maxHeight: '85%' },
+  modalTitle:    { fontSize: 22, fontWeight: '900', color: C.textPrimary, letterSpacing: -0.5 },
+  modalSubtitle: { fontSize: 14, fontWeight: '600', color: C.textSecondary, marginTop: 4 },
+  modalCancel:   { marginTop: 16, padding: 14, borderRadius: 12, backgroundColor: C.surfaceHighlight, alignItems: 'center', borderWidth: 1, borderColor: C.border },
+  modalCancelText: { fontWeight: '800', color: C.textSecondary, fontSize: 15 },
+
+  roleOption:      { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 14, borderWidth: 1.5, borderColor: C.border, marginBottom: 10, backgroundColor: C.surfaceHighlight },
+  roleOptionActive:{ borderColor: C.primary, backgroundColor: C.primary + '08' },
+  roleOptionEmoji: { fontSize: 28 },
+  roleOptionTitle: { fontSize: 15, fontWeight: '800', color: C.textPrimary, letterSpacing: -0.2 },
+  roleOptionDesc:  { fontSize: 12, fontWeight: '500', color: C.textSecondary, marginTop: 2 },
+
+  inputLabel:    { fontSize: 13, fontWeight: '800', color: C.textSecondary, marginBottom: 6, marginTop: 12, letterSpacing: 0.5, textTransform: 'uppercase' },
+  textInput:     { backgroundColor: C.surfaceHighlight, borderRadius: 12, padding: 14, fontSize: 15, color: C.textPrimary, borderWidth: 1.5, borderColor: C.border, fontWeight: '600' },
+  
+  createBtn:     { backgroundColor: C.primary, padding: 16, borderRadius: 14, alignItems: 'center', marginTop: 20, marginBottom: 8 },
+  createBtnText: { color: '#FFFFFF', fontWeight: '900', fontSize: 16, letterSpacing: -0.3 },
+
+  fab:           { position: 'absolute', bottom: 24, right: 20, backgroundColor: C.primary, paddingHorizontal: 20, paddingVertical: 14, borderRadius: 50, elevation: 8, shadowColor: C.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
+  fabText:       { color: '#FFFFFF', fontWeight: '900', fontSize: 15, letterSpacing: -0.3 },
+
+  dlLabel:       { fontSize: 11, fontWeight: '800', color: C.textMuted, marginTop: 14, textTransform: 'uppercase', letterSpacing: 0.8 },
+  dlValue:       { fontSize: 15, fontWeight: '600', color: C.textPrimary, marginTop: 4 },
+
+  sectionRow:    { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginTop: 14, marginBottom: 4 },
+  sectionTab:    { flex: 1, paddingVertical: 12, borderRadius: 14, backgroundColor: C.surfaceHighlight, alignItems: 'center', borderWidth: 1.5, borderColor: C.border },
+  sectionTabActive: { backgroundColor: C.primary, borderColor: C.primary },
+  sectionTabTxt: { fontSize: 14, fontWeight: '800', color: C.textSecondary },
+  sectionTabTxtActive: { color: '#FFFFFF' },
 });
