@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, Alert, Image, ActivityIndicator, SafeAreaView, Platform
+  ScrollView, Alert, Image, ActivityIndicator, Platform, StatusBar
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import api, { BASE_URL } from '../../api/api';
 import { useAuth } from '../../context/AuthContext';
-
-const PRIMARY = '#1E3A8A';
+import { useTheme } from '../../context/ThemeContext';
+import { SIZES, SHADOWS } from '../../theme/theme';
 
 export default function KYCUploadScreen({ navigation }) {
   const { user, refreshUser } = useAuth();
+  const { colors, isDark } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
   const [loading, setLoading] = useState(false);
 
   // Initialize state with backend images if they exist
@@ -93,14 +95,14 @@ export default function KYCUploadScreen({ navigation }) {
       <View style={[styles.uploadCard, isLocked && styles.uploadCardLocked]}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>{label}</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             {isOptional && <Text style={styles.optionalBadge}>Optional</Text>}
             {isLocked && <Text style={{ fontSize: 16 }}>🔒</Text>}
           </View>
         </View>
         
         <TouchableOpacity 
-          style={[styles.uploadArea, isLocked && { borderStyle: 'solid', borderColor: '#CBD5E1' }]} 
+          style={[styles.uploadArea, isLocked && { borderStyle: 'solid', borderColor: colors.border }]} 
           onPress={() => pickImage(field)}
           activeOpacity={isLocked ? 1 : 0.7}
         >
@@ -120,25 +122,25 @@ export default function KYCUploadScreen({ navigation }) {
   const renderStatusBanner = () => {
     if (status === 'verified') {
       return (
-        <View style={[styles.statusBanner, { backgroundColor: '#DCFCE7', borderColor: '#BBF7D0' }]}>
-          <Text style={[styles.statusBannerTitle, { color: '#16A34A' }]}>✅ Identity Verified</Text>
-          <Text style={[styles.statusBannerText, { color: '#15803D' }]}>Your documents have been approved. You are fully authorized to book vehicles freely.</Text>
+        <View style={[styles.statusBanner, { backgroundColor: colors.success + '15', borderColor: colors.success + '40' }]}>
+          <Text style={[styles.statusBannerTitle, { color: colors.success }]}>Identity Verified</Text>
+          <Text style={[styles.statusBannerText, { color: colors.success }]}>Your documents have been approved. You are fully authorized to book vehicles freely.</Text>
         </View>
       );
     }
     if (status === 'pending') {
       return (
-        <View style={[styles.statusBanner, { backgroundColor: '#FEF9C3', borderColor: '#FEF08A' }]}>
-          <Text style={[styles.statusBannerTitle, { color: '#CA8A04' }]}>⏳ Pending Admin Review</Text>
-          <Text style={[styles.statusBannerText, { color: '#A16207' }]}>Your documents are securely locked and are currently being reviewed. Please check back later.</Text>
+        <View style={[styles.statusBanner, { backgroundColor: colors.warning + '15', borderColor: colors.warning + '40' }]}>
+          <Text style={[styles.statusBannerTitle, { color: colors.warning }]}>Pending Admin Review</Text>
+          <Text style={[styles.statusBannerText, { color: colors.warning }]}>Your documents are securely locked and are currently being reviewed. Please check back later.</Text>
         </View>
       );
     }
     if (status === 'rejected') {
       return (
-        <View style={[styles.statusBanner, { backgroundColor: '#FEE2E2', borderColor: '#FECACA' }]}>
-          <Text style={[styles.statusBannerTitle, { color: '#DC2626' }]}>❌ Documents Rejected</Text>
-          <Text style={[styles.statusBannerText, { color: '#B91C1C' }]}>Your previous submission was rejected. Please ensure photos are clear, glare-free, and re-upload them below.</Text>
+        <View style={[styles.statusBanner, { backgroundColor: colors.error + '15', borderColor: colors.error + '40' }]}>
+          <Text style={[styles.statusBannerTitle, { color: colors.error }]}>Documents Rejected</Text>
+          <Text style={[styles.statusBannerText, { color: colors.error }]}>Your previous submission was rejected. Please ensure photos are clear, glare-free, and re-upload them below.</Text>
         </View>
       );
     }
@@ -148,9 +150,15 @@ export default function KYCUploadScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Identity Center</Text>
+    <View style={styles.screen}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.headerGradientStart} />
+      <View style={styles.greenHeader}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{marginRight: 16, padding: 4}} hitSlop={{top:10, bottom:10, left:10, right:10}}>
+             <Text style={styles.backBtn}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Identity Center</Text>
+        </View>
         {renderStatusBanner()}
       </View>
 
@@ -165,42 +173,45 @@ export default function KYCUploadScreen({ navigation }) {
             style={[styles.submitBtn, loading && styles.btnDisabled]} 
             onPress={submitKYC}
             disabled={loading}
+            activeOpacity={0.8}
           >
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>{isRejected ? 'Re-Submit Documents' : 'Submit Documents'}</Text>}
+            {loading ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.submitBtnText}>{isRejected ? 'Re-Submit Documents' : 'Submit Documents'}</Text>}
           </TouchableOpacity>
         )}
         <Text style={styles.securityNote}>🔒 Your documents are safely stored and encrypted.</Text>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  screen:             { flex: 1, backgroundColor: '#F8FAFC' },
-  header:             { padding: 24, paddingTop: 40, backgroundColor: '#fff', borderBottomWidth: 1, borderColor: '#E2E8F0' },
-  headerTitle:        { fontSize: 24, fontWeight: '800', color: PRIMARY, marginBottom: 12 },
-  headerSubtitle:     { color: '#64748B', fontSize: 14, lineHeight: 20 },
+const getStyles = (C) => StyleSheet.create({
+  screen:             { flex: 1, backgroundColor: C.background },
+  greenHeader:     { backgroundColor: C.headerGradientStart, paddingTop: 50, paddingBottom: 24, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, marginBottom: 16 },
+  headerTop:          { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  backBtn:            { fontSize: 22, color: '#FFFFFF', fontWeight: '700' },
+  headerTitle:        { fontSize: 24, fontWeight: '900', color: '#FFFFFF', letterSpacing: -0.5 },
+  headerSubtitle:     { color: 'rgba(255,255,255,0.7)', fontSize: 13, lineHeight: 20, fontWeight: '500' },
   
-  statusBanner:       { padding: 16, borderRadius: 12, borderWidth: 1 },
-  statusBannerTitle:  { fontSize: 16, fontWeight: '800', marginBottom: 4 },
-  statusBannerText:   { fontSize: 13, lineHeight: 18, fontWeight: '500' },
+  statusBanner:       { padding: 16, borderRadius: SIZES.radius, borderWidth: 1, marginTop: 4 },
+  statusBannerTitle:  { fontSize: 15, fontWeight: '800', marginBottom: 6, letterSpacing: -0.2 },
+  statusBannerText:   { fontSize: 13, lineHeight: 20, fontWeight: '600' },
 
   scrollArea:         { padding: 20, paddingBottom: 60 },
   
-  uploadCard:         { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 16, elevation: 2 },
-  uploadCardLocked:   { opacity: 0.9, backgroundColor: '#F8FAFC' },
-  cardHeader:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  cardTitle:          { fontSize: 16, fontWeight: '700', color: '#1E293B' },
-  optionalBadge:      { backgroundColor: '#EFF6FF', color: '#3B82F6', fontSize: 12, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, fontWeight: '600' },
+  uploadCard:         { backgroundColor: C.surface, borderRadius: SIZES.radius, padding: 20, marginBottom: 20, borderWidth: 1, borderColor: C.border, ...SHADOWS.card },
+  uploadCardLocked:   { opacity: 0.95, backgroundColor: C.background },
+  cardHeader:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  cardTitle:          { fontSize: 14, fontWeight: '800', color: C.textPrimary, letterSpacing: -0.2 },
+  optionalBadge:      { backgroundColor: C.surfaceHighlight, color: C.primary, fontSize: 11, paddingHorizontal: 10, paddingVertical: 4, borderRadius: SIZES.radiusPill, fontWeight: '700', textTransform: 'uppercase' },
   
-  uploadArea:         { height: 160, backgroundColor: '#F1F5F9', borderRadius: 12, borderWidth: 2, borderColor: '#E2E8F0', borderStyle: 'dashed', overflow: 'hidden' },
+  uploadArea:         { height: 160, backgroundColor: C.background, borderRadius: SIZES.radius, borderWidth: 2, borderColor: C.border, borderStyle: 'dashed', overflow: 'hidden' },
   placeholderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  placeholderIcon:    { fontSize: 32, marginBottom: 8 },
-  placeholderText:    { color: '#64748B', fontWeight: '500' },
+  placeholderIcon:    { fontSize: 36, marginBottom: 12 },
+  placeholderText:    { color: C.textSecondary, fontWeight: '700', fontSize: 14 },
   previewImage:       { width: '100%', height: '100%', resizeMode: 'cover' },
   
-  submitBtn:          { backgroundColor: PRIMARY, borderRadius: 16, padding: 18, alignItems: 'center', marginTop: 12 },
+  submitBtn:          { backgroundColor: C.primary, borderRadius: SIZES.radius, paddingVertical: 18, alignItems: 'center', marginTop: 12, ...SHADOWS.float },
   btnDisabled:        { opacity: 0.7 },
-  submitBtnText:      { color: '#fff', fontWeight: '700', fontSize: 17 },
-  securityNote:       { color: '#94A3B8', textAlign: 'center', marginTop: 16, fontSize: 12 }
+  submitBtnText:      { color: '#FFFFFF', fontWeight: '800', fontSize: 16, letterSpacing: 0.5 },
+  securityNote:       { color: C.textMuted, textAlign: 'center', marginTop: 24, fontSize: 13, fontWeight: '600' }
 });

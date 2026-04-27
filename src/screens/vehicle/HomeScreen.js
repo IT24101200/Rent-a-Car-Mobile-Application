@@ -1,53 +1,72 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, Image,
-  ActivityIndicator, RefreshControl, SafeAreaView, TextInput, ScrollView
+  ActivityIndicator, RefreshControl, TextInput, ScrollView, Platform, StatusBar
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import api, { BASE_URL } from '../../api/api';
+import { SIZES, SHADOWS } from '../../theme/theme';
 
-const PRIMARY = '#1E3A8A';
 const FILTERS = ['All', 'SUV', 'Sedan', 'Luxury', 'Automatic', 'Hybrid', 'Petrol'];
 
 // ── Vehicle Card Component ─────────────────────────────────────────
-const VehicleCard = ({ item, onPress }) => (
-  <TouchableOpacity style={styles.card} onPress={() => onPress(item)} activeOpacity={0.8}>
-    {item.imageUrl ? (
-      <Image
-        source={{ uri: `${BASE_URL}${item.imageUrl}` }}
-        style={styles.cardImage}
-        resizeMode="cover"
-      />
-    ) : (
-      <View style={styles.cardImagePlaceholder}>
-        <Text style={{ fontSize: 36 }}>🚗</Text>
-      </View>
-    )}
-    <View style={styles.cardBody}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.carName}>{item.makeAndModel}</Text>
-        <View style={[styles.badge, { backgroundColor: item.isCurrentlyBooked ? '#FEF3C7' : (item.isAvailable ? '#E8F5E9' : '#FFEBEE') }]}>
-          <Text style={[styles.badgeText, { color: item.isCurrentlyBooked ? '#D97706' : (item.isAvailable ? '#2E7D32' : '#C62828') }]}>
-            {item.isCurrentlyBooked ? '⏳ Currently Booked' : (item.isAvailable ? '✅ Available' : '🚫 Unavailable')}
-          </Text>
+const VehicleCard = ({ item, onPress }) => {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+  const isBooked = item.isCurrentlyBooked;
+  const isAvail = item.isAvailable && !isBooked;
+
+  return (
+    <TouchableOpacity style={styles.card} onPress={() => onPress(item)} activeOpacity={0.9}>
+      <View style={styles.cardImageContainer}>
+        {item.imageUrl ? (
+          <Image source={{ uri: `${BASE_URL}${item.imageUrl}` }} style={styles.cardImage} resizeMode="cover" />
+        ) : (
+          <View style={styles.cardImagePlaceholder}>
+            <Text style={{ fontSize: 40 }}>🚘</Text>
+          </View>
+        )}
+        <View style={styles.priceTag}>
+          <Text style={styles.priceText}>Rs. {item.pricePerDay}</Text>
+          <Text style={styles.priceSub}>/day</Text>
         </View>
       </View>
-      <View style={styles.cardRow}>
-        <Text style={styles.detail}>🔖 {item.licensePlate} • {item.year || 'N/A'}</Text>
-        <Text style={styles.price}>💰 Rs. {item.pricePerDay}/day</Text>
+      
+      <View style={styles.cardBody}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.carName}>{item.makeAndModel}</Text>
+          <View style={[styles.statusIndicator, { backgroundColor: isBooked ? colors.warning : (isAvail ? colors.success : colors.error) }]}>
+            <View style={[styles.statusDot, { backgroundColor: colors.surface }]} />
+            <Text style={[styles.statusText, { color: colors.surface }]}>
+              {isBooked ? 'Booked' : (isAvail ? 'Available' : 'Unavailable')}
+            </Text>
+          </View>
+        </View>
+        
+        <Text style={styles.plateText}>{item.licensePlate} • {item.year || 'N/A'}</Text>
+        
+        <View style={styles.featuresRow}>
+          <View style={styles.featureItem}><Text style={styles.featureIcon}>⚙️</Text><Text style={styles.featureText}>{item.transmission || 'Auto'}</Text></View>
+          <View style={styles.featureItem}><Text style={styles.featureIcon}>⛽</Text><Text style={styles.featureText}>{item.fuelType || 'Gas'}</Text></View>
+          <View style={styles.featureItem}><Text style={styles.featureIcon}>💺</Text><Text style={styles.featureText}>{item.seats || '4'} Seats</Text></View>
+        </View>
+        
+        {item.avgRating && (
+          <View style={styles.ratingRow}>
+            <Text style={styles.starIcon}>★</Text>
+            <Text style={styles.ratingVal}>{item.avgRating}</Text>
+            <Text style={styles.ratingCount}>({item.reviewCount} reviews)</Text>
+          </View>
+        )}
       </View>
-      <View style={{ marginBottom: 4 }}>
-        <Text style={styles.detail}>{item.type || 'Vehicle'} • {item.transmission || 'N/A'} • {item.fuelType || 'N/A'} • 💺 {item.seats || 'N/A'}</Text>
-      </View>
-      <View style={styles.bookBtn}>
-        <Text style={styles.bookBtnText}>View Details →</Text>
-      </View>
-    </View>
-  </TouchableOpacity>
-);
+    </TouchableOpacity>
+  );
+};
 
 export default function HomeScreen({ navigation }) {
   const { user, logout } = useAuth();
+  const { colors, isDark } = useTheme();
 
   const [vehicles,    setVehicles]    = useState([]);
   const [loading,     setLoading]     = useState(true);
@@ -97,125 +116,164 @@ export default function HomeScreen({ navigation }) {
     });
   }, [vehicles, searchQuery, activeFilter]);
 
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
   // ── Header ───────────────────────────────────────────────────────
   const ListHeader = () => (
-    <View style={styles.headerContainer}>
-      <View style={styles.greetingRow}>
-        <View>
-          <Text style={styles.greeting}>Hello, {user?.name?.split(' ')[0]} 👋</Text>
-          <Text style={styles.subGreeting}>Find your perfect ride</Text>
-        </View>
-        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.searchBox}>
-        <Text style={styles.searchIcon}>🔍</Text>
-        <TextInput 
-          style={styles.searchInput}
-          placeholder="Search by make, model, or plate..."
-          placeholderTextColor="#94A3B8"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </View>
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-        {FILTERS.map(f => (
-          <TouchableOpacity 
-            key={f} 
-            style={[styles.filterChip, activeFilter === f && styles.filterChipActive]}
-            onPress={() => setActiveFilter(f)}
-          >
-            <Text style={[styles.filterText, activeFilter === f && styles.filterTextActive]}>{f}</Text>
+    <View>
+      {/* ── Emerald Green Header ── */}
+      <View style={styles.greenHeader}>
+        <View style={styles.greetingRow}>
+          <View>
+            <Text style={styles.brandLabel}>DriveEase</Text>
+            <Text style={styles.greeting}>Hello, {user?.name?.split(' ')[0]}</Text>
+            <Text style={styles.subGreeting}>Welcome to DriveEase</Text>
+          </View>
+          <TouchableOpacity style={styles.avatarBtn} onPress={() => navigation.navigate('Profile')}>
+            <Text style={styles.avatarText}>{user?.name?.charAt(0)?.toUpperCase()}</Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
+        </View>
+      </View>
+
+      {/* ── Content below header ── */}
+      <View style={styles.contentArea}>
+        <View style={styles.searchBox}>
+          <Text style={styles.searchIcon}>🔍</Text>
+          <TextInput 
+            style={styles.searchInput}
+            placeholder="Search vehicles..."
+            placeholderTextColor={colors.textMuted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Text style={styles.clearIcon}>✖</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <Text style={styles.sectionTitle}>Categories</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+          {FILTERS.map(f => (
+            <TouchableOpacity 
+              key={f} 
+              style={[styles.filterChip, activeFilter === f && styles.filterChipActive]}
+              onPress={() => setActiveFilter(f)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.filterText, activeFilter === f && styles.filterTextActive]}>{f}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
     </View>
   );
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.center}>
-        <ActivityIndicator size="large" color={PRIMARY} />
-        <Text style={styles.loadingText}>Loading vehicles...</Text>
-      </SafeAreaView>
+      <View style={styles.centerScreen}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
     );
   }
 
   if (error) {
     return (
-      <SafeAreaView style={styles.center}>
-        <Text style={styles.errorTitle}>⚠️ Could Not Load</Text>
+      <View style={styles.centerScreen}>
+        <Text style={styles.errorTitle}>Connection Issue</Text>
         <Text style={styles.errorMsg}>{error}</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={() => fetchVehicles()}>
-          <Text style={styles.retryText}>Retry</Text>
+          <Text style={styles.retryText}>Retry Connection</Text>
         </TouchableOpacity>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <View style={styles.screen}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.headerGradientStart} />
       <FlatList
         data={displayVehicles}
         keyExtractor={(item) => item._id}
         renderItem={({ item }) => <VehicleCard item={item} onPress={handlePressVehicle} />}
         ListHeaderComponent={<ListHeader />}
         ListEmptyComponent={
-          <View style={[styles.center, {paddingTop: 40}]}>
-            <Text style={{fontSize: 40, marginBottom: 12}}>🏜️</Text>
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyIcon}>🏜️</Text>
             <Text style={styles.emptyText}>No vehicles match your search.</Text>
           </View>
         }
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchVehicles(true)} colors={[PRIMARY]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchVehicles(true)} colors={[colors.primary]} tintColor={colors.primary} />}
         contentContainerStyle={styles.list}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  screen:       { flex: 1, backgroundColor: '#F8FAFC' },
-  list:         { paddingBottom: 40 },
-  center:       { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 30 },
+const getStyles = (C) => StyleSheet.create({
+  screen:         { flex: 1, backgroundColor: C.background },
+  list:           { paddingBottom: 40 },
+  centerScreen:   { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.background },
   
-  headerContainer:{ backgroundColor: '#fff', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 10, marginBottom: 20 },
-  greetingRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  greeting:     { fontSize: 24, fontWeight: '900', color: '#0F172A' },
-  subGreeting:  { color: '#64748B', marginTop: 4, fontSize: 14, fontWeight: '500' },
-  logoutBtn:    { backgroundColor: '#FEE2E2', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
-  logoutText:   { color: '#DC2626', fontWeight: '700', fontSize: 13 },
+  // ── Green Header ──
+  greenHeader:    { backgroundColor: C.headerGradientStart, paddingTop: 50, paddingBottom: 24, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
+  greetingRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  brandLabel:     { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.7)', letterSpacing: 0.5, marginBottom: 4 },
+  greeting:       { fontSize: 24, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
+  subGreeting:    { color: 'rgba(255,255,255,0.6)', marginTop: 2, fontSize: 13, fontWeight: '500' },
+  avatarBtn:      { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  avatarText:     { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
   
-  searchBox:    { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: 12, paddingHorizontal: 12, marginBottom: 16, borderWidth: 1, borderColor: '#E2E8F0' },
-  searchIcon:   { fontSize: 16, marginRight: 8 },
-  searchInput:  { flex: 1, height: 44, color: '#0F172A', fontWeight: '600' },
+  // ── Content Area ──
+  contentArea:    { paddingHorizontal: 20, paddingTop: 20 },
+  searchBox:      { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderRadius: SIZES.radius, height: SIZES.inputHeight, paddingHorizontal: 16, marginBottom: 20, borderWidth: 1, borderColor: C.border, ...SHADOWS.card },
+  searchIcon:     { fontSize: 18, marginRight: 12, opacity: 0.5 },
+  searchInput:    { flex: 1, height: '100%', color: C.textPrimary, fontSize: 15 },
+  clearIcon:      { fontSize: 14, color: C.textMuted, padding: 4 },
   
-  filterScroll: { paddingVertical: 4 },
-  filterChip:   { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#F1F5F9', borderRadius: 20, marginRight: 8, borderWidth: 1, borderColor: '#E2E8F0' },
-  filterChipActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  filterText:   { color: '#64748B', fontWeight: '600', fontSize: 13 },
-  filterTextActive: { color: '#fff', fontWeight: '800' },
+  sectionTitle:   { fontSize: 18, fontWeight: '800', color: C.textPrimary, marginBottom: 12 },
+  filterScroll:   { paddingVertical: 4, marginBottom: 8 },
+  filterChip:     { paddingHorizontal: 20, height: 36, justifyContent: 'center', backgroundColor: C.surface, borderRadius: SIZES.radius, marginRight: 10, borderWidth: 1, borderColor: C.border },
+  filterChipActive: { backgroundColor: C.primary, borderColor: C.primary },
+  filterText:     { color: C.textSecondary, fontWeight: '600', fontSize: 13 },
+  filterTextActive: { color: '#FFFFFF', fontWeight: '800' },
 
-  loadingText:  { marginTop: 12, color: '#64748B', fontWeight: '500' },
-  errorTitle:   { fontSize: 18, fontWeight: '800', color: '#DC2626', marginBottom: 8 },
-  errorMsg:     { color: '#64748B', textAlign: 'center', lineHeight: 22, fontWeight: '500' },
-  retryBtn:     { marginTop: 16, backgroundColor: PRIMARY, paddingHorizontal: 28, paddingVertical: 12, borderRadius: 10 },
-  retryText:    { color: '#fff', fontWeight: '800' },
-  emptyText:    { color: '#94A3B8', fontSize: 16, fontWeight: '600' },
+  emptyContainer: { alignItems: 'center', marginTop: 80 },
+  emptyIcon:      { fontSize: 48, marginBottom: 16 },
+  emptyText:      { color: C.textMuted, fontSize: 15, fontWeight: '600' },
   
-  card:         { backgroundColor: '#fff', marginHorizontal: 16, borderRadius: 16, marginBottom: 12, elevation: 2, borderWidth: 1, borderColor: '#F1F5F9', overflow: 'hidden' },
-  cardImage:    { width: '100%', height: 160 },
-  cardImagePlaceholder: { width: '100%', height: 120, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center' },
-  cardBody:     { padding: 14 },
-  cardHeader:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
-  carName:      { fontSize: 18, fontWeight: '800', color: '#0F172A', flex: 1 },
-  badge:        { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginLeft: 8 },
-  badgeText:    { fontSize: 11, fontWeight: '800' },
-  cardRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  detail:       { color: '#64748B', fontSize: 13, fontWeight: '500' },
-  price:        { color: '#059669', fontWeight: '800', fontSize: 15 },
-  bookBtn:      { marginTop: 8, backgroundColor: '#EEF2FF', borderRadius: 10, padding: 12, alignItems: 'center' },
-  bookBtnText:  { color: PRIMARY, fontWeight: '800', fontSize: 14 },
+  errorTitle:     { fontSize: 18, fontWeight: '800', color: C.textPrimary, marginBottom: 8 },
+  errorMsg:       { color: C.textSecondary, textAlign: 'center', paddingHorizontal: 40, marginBottom: 24 },
+  retryBtn:       { backgroundColor: C.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: SIZES.radius },
+  retryText:      { color: '#FFFFFF', fontWeight: '700' },
+  
+  // ── Vehicle Cards ──
+  card:           { backgroundColor: C.surface, marginHorizontal: 20, borderRadius: SIZES.radius, marginBottom: 16, borderWidth: 1, borderColor: C.border, overflow: 'hidden' },
+  cardImageContainer: { height: 180, width: '100%', backgroundColor: C.surfaceHighlight, position: 'relative' },
+  cardImage:      { width: '100%', height: '100%' },
+  cardImagePlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.surfaceHighlight },
+  priceTag:       { position: 'absolute', bottom: 12, right: 12, backgroundColor: C.primary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: SIZES.radius, flexDirection: 'row', alignItems: 'baseline' },
+  priceText:      { fontWeight: '900', fontSize: 15, color: '#FFFFFF' },
+  priceSub:       { fontSize: 11, color: 'rgba(255,255,255,0.8)', fontWeight: '600', marginLeft: 2 },
+  
+  cardBody:       { padding: 16 },
+  cardHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
+  carName:        { fontSize: 17, fontWeight: '800', color: C.textPrimary, flex: 1 },
+  statusIndicator:{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: SIZES.radius, marginLeft: 12 },
+  statusDot:      { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
+  statusText:     { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  
+  plateText:      { color: C.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 14, marginTop: -2 },
+  
+  featuresRow:    { flexDirection: 'row', gap: 16, marginBottom: 14 },
+  featureItem:    { flexDirection: 'row', alignItems: 'center' },
+  featureIcon:    { fontSize: 14, marginRight: 6 },
+  featureText:    { fontSize: 12, color: C.textSecondary, fontWeight: '600' },
+  
+  ratingRow:      { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: C.border, paddingTop: 12, marginTop: 4 },
+  starIcon:       { color: C.warning, fontSize: 16, marginRight: 4, marginTop: -2 },
+  ratingVal:      { fontSize: 13, fontWeight: '800', color: C.textPrimary, marginRight: 4 },
+  ratingCount:    { fontSize: 12, color: C.textMuted, fontWeight: '600' }
 });
+

@@ -323,11 +323,26 @@ app.get('/api/vehicles', async (req, res) => {
     });
     
     const activeVehicleIds = activeBookings.map(b => b.vehicle.toString());
+
+    // Aggregate feedback ratings per vehicle
+    const allFeedbacks = await Feedback.find({ vehicle: { $in: vehicles.map(v => v._id) } }).select('vehicle rating');
+    const ratingMap = {};
+    allFeedbacks.forEach(f => {
+      const vid = f.vehicle.toString();
+      if (!ratingMap[vid]) ratingMap[vid] = { total: 0, count: 0 };
+      ratingMap[vid].total += f.rating;
+      ratingMap[vid].count += 1;
+    });
     
-    const augmentedVehicles = vehicles.map(v => ({
-      ...v,
-      isCurrentlyBooked: activeVehicleIds.includes(v._id.toString())
-    }));
+    const augmentedVehicles = vehicles.map(v => {
+      const r = ratingMap[v._id.toString()];
+      return {
+        ...v,
+        isCurrentlyBooked: activeVehicleIds.includes(v._id.toString()),
+        avgRating: r ? parseFloat((r.total / r.count).toFixed(1)) : null,
+        reviewCount: r ? r.count : 0,
+      };
+    });
     
     res.json(augmentedVehicles);
   } catch (err) {
@@ -436,11 +451,17 @@ app.put('/api/owner/vehicles/:id', authMiddleware, ownerMiddleware, uploadVehicl
 
     const existingVehicle = await Vehicle.findOne({ _id: req.params.id, owner: req.user.id });
     if (!existingVehicle) return res.status(404).json({ message: 'Vehicle not found or unauthorized.' });
-    if (existingVehicle.validationStatus === 'accepted') {
-      return res.status(403).json({ message: 'Cannot edit an already accepted vehicle.' });
-    }
 
     const files = req.files || {};
+
+    // ── Two-tier edit logic ──
+    // Critical changes (name, plate, photo, documents) reset status to pending
+    // Safe changes (price, features, seats, etc.) keep current status
+    const criticalChanged =
+      makeAndModel !== existingVehicle.makeAndModel ||
+      licensePlate.toUpperCase() !== existingVehicle.licensePlate ||
+      (files.image && files.image[0]) ||
+      Object.keys(files).some(k => ['revenueLicense', 'insurance', 'registration', 'fitness'].includes(k));
 
     // Replace vehicle photo if new one uploaded
     if (files.image && files.image[0]) {
@@ -464,8 +485,11 @@ app.put('/api/owner/vehicles/:id', authMiddleware, ownerMiddleware, uploadVehicl
     if (year !== undefined) existingVehicle.year = Number(year);
     if (features !== undefined) existingVehicle.features = features;
 
-    existingVehicle.validationStatus = 'pending';
-    existingVehicle.isAvailable = false;
+    // Only reset status if critical fields changed
+    if (criticalChanged) {
+      existingVehicle.validationStatus = 'pending';
+      existingVehicle.isAvailable = false;
+    }
 
     await existingVehicle.save();
     res.json(existingVehicle);
@@ -740,22 +764,267 @@ app.patch('/api/owner/bookings/:id/verify', authMiddleware, async (req, res) => 
 //  FEEDBACK ROUTES
 // ═══════════════════════════════════════════════════════════════════
 
-// POST /api/feedback
+// POST /api/feedback — submit feedback (with duplicate check + vehicle auto-populate)
 app.post('/api/feedback', authMiddleware, async (req, res) => {
   try {
     const { bookingId, rating, comment } = req.body;
     if (!bookingId || !rating)
       return res.status(400).json({ message: 'bookingId and rating are required.' });
 
+    // Prevent duplicate feedback for same booking
+    const existing = await Feedback.findOne({ booking: bookingId, user: req.user.id });
+    if (existing) return res.status(400).json({ message: 'You have already reviewed this booking.' });
+
+    // Auto-populate vehicle from booking
+    const booking = await Booking.findById(bookingId);
+    if (!booking) return res.status(404).json({ message: 'Booking not found.' });
+
     const feedback = await Feedback.create({
       booking: bookingId,
       user:    req.user.id,
+      vehicle: booking.vehicle,
       rating,
       comment,
     });
     res.status(201).json(feedback);
   } catch (err) {
     res.status(500).json({ message: 'Error submitting feedback.', error: err.message });
+  }
+});
+
+// GET /api/vehicles/:id/feedback — public reviews for a vehicle
+app.get('/api/vehicles/:id/feedback', async (req, res) => {
+  try {
+    const feedbacks = await Feedback.find({ vehicle: req.params.id })
+      .populate('user', 'name')
+      .sort({ createdAt: -1 });
+    
+    // Compute average rating
+    const avg = feedbacks.length > 0
+      ? (feedbacks.reduce((sum, f) => sum + f.rating, 0) / feedbacks.length).toFixed(1)
+      : null;
+
+    res.json({ feedbacks, averageRating: avg ? parseFloat(avg) : null, totalReviews: feedbacks.length });
+  } catch (err) {
+    res.status(500).json({ message: 'Error fetching vehicle feedback.', error: err.message });
+  }
+});
+
+// GET /api/owner/feedback — all reviews across owner's vehicles
+app.get('/api/owner/feedback', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const ownerVehicles = await Vehicle.find({ owner: req.user.id }).select('_id makeAndModel');
+    const vehicleIds = ownerVehicles.map(v => v._id);
+
+    const feedbacks = await Feedback.find({ vehicle: { $in: vehicleIds } })
+      .populate('user', 'name email')
+      .populate('vehicle', 'makeAndModel licensePlate')
+      .sort({ createdAt: -1 });
+
+    const avg = feedbacks.length > 0
+      ? (feedbacks.reduce((s, f) => s + f.rating, 0) / feedbacks.length).toFixed(1)
+      : null;
+
+    res.json({ feedbacks, averageRating: avg ? parseFloat(avg) : null, totalReviews: feedbacks.length, vehicles: ownerVehicles });
+  } catch (err) {
+    res.status(500).json({ message: 'Error fetching owner feedback.', error: err.message });
+  }
+});
+
+// PATCH /api/owner/feedback/:id/reply — owner replies to a review
+app.patch('/api/owner/feedback/:id/reply', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ message: 'Reply text is required.' });
+
+    const feedback = await Feedback.findById(req.params.id).populate('vehicle', 'owner');
+    if (!feedback) return res.status(404).json({ message: 'Feedback not found.' });
+
+    // Verify the owner actually owns this vehicle
+    if (feedback.vehicle.owner.toString() !== req.user.id)
+      return res.status(403).json({ message: 'You can only reply to feedback on your own vehicles.' });
+
+    feedback.ownerReply = { text: text.trim(), repliedAt: new Date() };
+    await feedback.save();
+    res.json(feedback);
+  } catch (err) {
+    res.status(500).json({ message: 'Error posting reply.', error: err.message });
+  }
+});
+
+// GET /api/owner/analytics — owner-level analytics
+app.get('/api/owner/analytics', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const ownerVehicles = await Vehicle.find({ owner: req.user.id });
+    const vehicleIds = ownerVehicles.map(v => v._id);
+
+    const bookings = await Booking.find({ vehicle: { $in: vehicleIds } });
+    const feedbacks = await Feedback.find({ vehicle: { $in: vehicleIds } });
+
+    const completedBookings = bookings.filter(b => b.status === 'completed' || b.status === 'confirmed' || b.status === 'active' || b.status === 'returning');
+    const totalEarnings = completedBookings.reduce((sum, b) => sum + (b.totalPrice || 0), 0);
+    const avgRating = feedbacks.length > 0
+      ? parseFloat((feedbacks.reduce((s, f) => s + f.rating, 0) / feedbacks.length).toFixed(1))
+      : null;
+
+    // Per-vehicle breakdown
+    const vehicleStats = ownerVehicles.map(v => {
+      const vBookings = bookings.filter(b => b.vehicle.toString() === v._id.toString());
+      const vFeedbacks = feedbacks.filter(f => f.vehicle.toString() === v._id.toString());
+      const vCompleted = vBookings.filter(b => b.status === 'completed' || b.status === 'confirmed' || b.status === 'active' || b.status === 'returning');
+      return {
+        vehicleId: v._id,
+        makeAndModel: v.makeAndModel,
+        licensePlate: v.licensePlate,
+        totalBookings: vBookings.length,
+        totalIncome: vCompleted.reduce((sum, b) => sum + (b.totalPrice || 0), 0),
+        avgRating: vFeedbacks.length > 0
+          ? parseFloat((vFeedbacks.reduce((s, f) => s + f.rating, 0) / vFeedbacks.length).toFixed(1))
+          : null,
+        reviewCount: vFeedbacks.length,
+      };
+    });
+
+    // Monthly earnings (last 6 months)
+    const monthlyEarnings = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const year = d.getFullYear();
+      const month = d.getMonth();
+      const monthBookings = completedBookings.filter(b => {
+        const bd = new Date(b.createdAt);
+        return bd.getFullYear() === year && bd.getMonth() === month;
+      });
+      monthlyEarnings.push({
+        label: d.toLocaleString('default', { month: 'short' }),
+        amount: monthBookings.reduce((s, b) => s + (b.totalPrice || 0), 0),
+      });
+    }
+
+    res.json({
+      totalEarnings,
+      totalBookings: bookings.length,
+      completedBookings: bookings.filter(b => b.status === 'completed').length,
+      cancelledBookings: bookings.filter(b => b.status === 'cancelled').length,
+      activeVehicles: ownerVehicles.filter(v => v.validationStatus === 'accepted').length,
+      totalVehicles: ownerVehicles.length,
+      avgRating,
+      totalReviews: feedbacks.length,
+      vehicleStats,
+      monthlyEarnings,
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Error fetching owner analytics.', error: err.message });
+  }
+});
+
+// GET /api/admin/analytics/report — full platform report
+app.get('/api/admin/analytics/report', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const [allBookings, allVehicles, allFeedbacks, allUsers] = await Promise.all([
+      Booking.find().populate('vehicle', 'makeAndModel owner'),
+      Vehicle.find().populate('owner', 'name email'),
+      Feedback.find().populate('vehicle', 'makeAndModel'),
+      User.find().select('name email role'),
+    ]);
+
+    // Revenue
+    const revenueBookings = allBookings.filter(b => ['completed', 'confirmed', 'active', 'returning'].includes(b.status));
+    const totalRevenue = revenueBookings.reduce((s, b) => s + (b.totalPrice || 0), 0);
+
+    // Monthly revenue trend (last 6 months)
+    const monthlyRevenue = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const year = d.getFullYear();
+      const month = d.getMonth();
+      const mBookings = revenueBookings.filter(b => {
+        const bd = new Date(b.createdAt);
+        return bd.getFullYear() === year && bd.getMonth() === month;
+      });
+      monthlyRevenue.push({
+        label: d.toLocaleString('default', { month: 'short' }),
+        amount: mBookings.reduce((s, b) => s + (b.totalPrice || 0), 0),
+      });
+    }
+
+    // Booking status breakdown
+    const statusBreakdown = {
+      confirmed: allBookings.filter(b => b.status === 'confirmed').length,
+      active: allBookings.filter(b => b.status === 'active').length,
+      completed: allBookings.filter(b => b.status === 'completed').length,
+      cancelled: allBookings.filter(b => b.status === 'cancelled').length,
+      returning: allBookings.filter(b => b.status === 'returning').length,
+    };
+
+    // Top 5 earning vehicles
+    const vehicleEarnings = {};
+    revenueBookings.forEach(b => {
+      if (!b.vehicle) return;
+      const vid = b.vehicle._id.toString();
+      if (!vehicleEarnings[vid]) vehicleEarnings[vid] = { name: b.vehicle.makeAndModel, income: 0 };
+      vehicleEarnings[vid].income += (b.totalPrice || 0);
+    });
+    const topEarners = Object.values(vehicleEarnings).sort((a, b) => b.income - a.income).slice(0, 5);
+
+    // Top 5 rated vehicles
+    const vehicleRatings = {};
+    allFeedbacks.forEach(f => {
+      if (!f.vehicle) return;
+      const vid = f.vehicle._id.toString();
+      if (!vehicleRatings[vid]) vehicleRatings[vid] = { name: f.vehicle.makeAndModel, total: 0, count: 0 };
+      vehicleRatings[vid].total += f.rating;
+      vehicleRatings[vid].count += 1;
+    });
+    const topRated = Object.values(vehicleRatings)
+      .map(v => ({ ...v, avg: parseFloat((v.total / v.count).toFixed(1)) }))
+      .sort((a, b) => b.avg - a.avg)
+      .slice(0, 5);
+
+    // Rating distribution (1-5 histogram)
+    const ratingDist = [0, 0, 0, 0, 0];
+    allFeedbacks.forEach(f => { if (f.rating >= 1 && f.rating <= 5) ratingDist[f.rating - 1]++; });
+
+    // Owner performance
+    const owners = allUsers.filter(u => u.role === 'Car Owner');
+    const ownerPerformance = owners.map(o => {
+      const oVehicles = allVehicles.filter(v => v.owner && v.owner._id.toString() === o._id.toString());
+      const oVehicleIds = oVehicles.map(v => v._id.toString());
+      const oBookings = revenueBookings.filter(b => b.vehicle && oVehicleIds.includes(b.vehicle._id.toString()));
+      const oFeedbacks = allFeedbacks.filter(f => f.vehicle && oVehicleIds.includes(f.vehicle._id.toString()));
+      return {
+        name: o.name,
+        email: o.email,
+        vehicleCount: oVehicles.length,
+        totalIncome: oBookings.reduce((s, b) => s + (b.totalPrice || 0), 0),
+        avgRating: oFeedbacks.length > 0
+          ? parseFloat((oFeedbacks.reduce((s, f) => s + f.rating, 0) / oFeedbacks.length).toFixed(1))
+          : null,
+      };
+    }).sort((a, b) => b.totalIncome - a.totalIncome);
+
+    const platformAvgRating = allFeedbacks.length > 0
+      ? parseFloat((allFeedbacks.reduce((s, f) => s + f.rating, 0) / allFeedbacks.length).toFixed(1))
+      : null;
+
+    res.json({
+      totalRevenue,
+      totalBookings: allBookings.length,
+      totalVehicles: allVehicles.length,
+      totalUsers: allUsers.length,
+      statusBreakdown,
+      monthlyRevenue,
+      topEarners,
+      topRated,
+      ratingDist,
+      ownerPerformance,
+      platformAvgRating,
+      totalReviews: allFeedbacks.length,
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Error generating report.', error: err.message });
   }
 });
 
@@ -811,6 +1080,29 @@ app.patch('/api/admin/users/:id/status', authMiddleware, adminMiddleware, async 
   }
 });
 
+// PATCH /api/admin/users/:id/role — Promote user to Admin
+app.patch('/api/admin/users/:id/role', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { role } = req.body;
+    if (role !== 'Admin') return res.status(400).json({ message: 'Invalid role assignment.' });
+    const user = await User.findByIdAndUpdate(req.params.id, { role }, { new: true }).select('-password');
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: 'Error updating user role.', error: err.message });
+  }
+});
+
+// DELETE /api/admin/users/:id — Permanently delete user
+app.delete('/api/admin/users/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found.' });
+    res.json({ message: 'User deleted successfully.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Error deleting user.', error: err.message });
+  }
+});
+
 // GET /api/admin/bookings — List all platform bookings
 app.get('/api/admin/bookings', authMiddleware, adminMiddleware, async (req, res) => {
   try {
@@ -861,6 +1153,37 @@ app.delete('/api/admin/feedback/:id', authMiddleware, adminMiddleware, async (re
     res.json({ message: 'Feedback removed successfully.' });
   } catch (err) {
     res.status(500).json({ message: 'Error removing feedback.', error: err.message });
+  }
+});
+
+// ── Automated Booking Cancellations (Cron Job) ────────────────────────
+const cron = require('node-cron');
+
+// Runs every 15 minutes to check for no-shows (bookings that started > 60 mins ago but are still 'confirmed')
+cron.schedule('*/15 * * * *', async () => {
+  try {
+    const gracePeriodThreshold = new Date(Date.now() - 60 * 60 * 1000); // 60 minutes ago
+    
+    // Find missing bookings
+    const expiredBookings = await Booking.find({
+      status: 'confirmed',
+      startDate: { $lt: gracePeriodThreshold }
+    });
+
+    if (expiredBookings.length > 0) {
+      console.log(`[CRON] Found ${expiredBookings.length} expired bookings. Triggering automated cancellations...`);
+      
+      for (const booking of expiredBookings) {
+        // Issue an 80% theoretical refund, keeping 20% penalty
+        booking.status = 'cancelled';
+        booking.refundStatus = 'issued';
+        booking.cancellationReason = 'System Automatic: No-show for pickup (80% Refund Issued)';
+        await booking.save();
+      }
+      console.log('[CRON] Automated no-show cancellations complete.');
+    }
+  } catch (err) {
+    console.error('[CRON Error] Failed to process automated cancellations:', err.message);
   }
 });
 

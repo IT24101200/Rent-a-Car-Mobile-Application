@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Image,
-  StyleSheet, ScrollView, Alert, KeyboardAvoidingView, Platform, ActivityIndicator
+  StyleSheet, ScrollView, Alert, KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { useTheme } from '../../context/ThemeContext';
 import api from '../../api/api';
-
-const PRIMARY = '#1E3A8A';
+import { SIZES, SHADOWS } from '../../theme/theme';
 
 // Document definitions
 const DOCUMENTS = [
@@ -17,6 +17,8 @@ const DOCUMENTS = [
 ];
 
 export default function AddVehicleScreen({ navigation }) {
+  const { colors, isDark } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
   const [form, setForm] = useState({
     makeAndModel: '',
     licensePlate: '',
@@ -131,6 +133,7 @@ export default function AddVehicleScreen({ navigation }) {
                 key={option}
                 style={[styles.chip, isSelected && styles.chipSelected]}
                 onPress={() => onSelect(option)}
+                activeOpacity={0.8}
               >
                 <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>{option}</Text>
               </TouchableOpacity>
@@ -147,8 +150,9 @@ export default function AddVehicleScreen({ navigation }) {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.background} />
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <View style={styles.header}>
+        <View style={styles.greenHeader}>
           <Text style={styles.title}>List Your Vehicle</Text>
           <Text style={styles.subtitle}>Fill in details and upload required documents.</Text>
         </View>
@@ -156,7 +160,7 @@ export default function AddVehicleScreen({ navigation }) {
         {/* ── Vehicle Photo ─────────────────────────────────────────── */}
         <TouchableOpacity style={styles.imagePicker} onPress={() => pickImage(null)} activeOpacity={0.8}>
           {image ? (
-            <Image source={{ uri: image.uri }} style={styles.previewImage} />
+            <Image source={{ uri: image.uri }} style={styles.previewImage} resizeMode="cover" />
           ) : (
             <View style={styles.imagePlaceholder}>
               <Text style={styles.imagePlaceholderIcon}>📷</Text>
@@ -180,9 +184,10 @@ export default function AddVehicleScreen({ navigation }) {
             placeholder="e.g. Toyota Aqua"
             value={form.makeAndModel}
             onChangeText={t => setForm({...form, makeAndModel: t})}
+            placeholderTextColor={colors.textMuted}
           />
           <View style={styles.row}>
-            <View style={{flex: 1, marginRight: 10}}>
+            <View style={{flex: 1, marginRight: 16}}>
               <Text style={styles.label}>License Plate</Text>
               <TextInput
                 style={styles.input}
@@ -190,6 +195,7 @@ export default function AddVehicleScreen({ navigation }) {
                 autoCapitalize="characters"
                 value={form.licensePlate}
                 onChangeText={t => setForm({...form, licensePlate: t})}
+                placeholderTextColor={colors.textMuted}
               />
             </View>
             <View style={{flex: 1}}>
@@ -200,13 +206,14 @@ export default function AddVehicleScreen({ navigation }) {
                 keyboardType="numeric"
                 value={form.pricePerDay}
                 onChangeText={t => setForm({...form, pricePerDay: t})}
+                placeholderTextColor={colors.textMuted}
               />
             </View>
           </View>
         </View>
 
         {/* ── Specifications ─────────────────────────────────────────── */}
-        <View style={[styles.card, { marginTop: 14 }]}>
+        <View style={[styles.card, { marginTop: 16 }]}>
           <Text style={styles.sectionHeader}>Specifications</Text>
           <SelectorSection title="Vehicle Type"  options={TYPES}         selectedValue={form.type}         onSelect={t => setForm({...form, type: t})} />
           <SelectorSection title="Transmission"  options={TRANSMISSIONS} selectedValue={form.transmission} onSelect={t => setForm({...form, transmission: t})} />
@@ -219,6 +226,8 @@ export default function AddVehicleScreen({ navigation }) {
             keyboardType="numeric"
             value={form.year}
             onChangeText={t => setForm({...form, year: t})}
+            placeholderTextColor={colors.textMuted}
+            maxLength={4}
           />
           <Text style={styles.label}>Extra Features</Text>
           <TextInput
@@ -228,11 +237,12 @@ export default function AddVehicleScreen({ navigation }) {
             numberOfLines={3}
             value={form.features}
             onChangeText={t => setForm({...form, features: t})}
+            placeholderTextColor={colors.textMuted}
           />
         </View>
 
         {/* ── Document Vault ─────────────────────────────────────────── */}
-        <View style={[styles.card, { marginTop: 14 }]}>
+        <View style={[styles.card, { marginTop: 16 }]}>
           <View style={styles.vaultHeader}>
             <Text style={styles.sectionHeader}>📁 Document Vault</Text>
             <View style={styles.progressPill}>
@@ -253,8 +263,8 @@ export default function AddVehicleScreen({ navigation }) {
                     <View style={styles.docTitleRow}>
                       <Text style={styles.docLabel}>{doc.label}</Text>
                       {doc.required
-                        ? <View style={styles.requiredBadge}><Text style={styles.requiredBadgeText}>Required</Text></View>
-                        : <View style={styles.optionalBadge}><Text style={styles.optionalBadgeText}>Optional</Text></View>
+                        ? <View style={styles.requiredBadge}><Text style={styles.requiredBadgeText}>REQUIRED</Text></View>
+                        : <View style={styles.optionalBadge}><Text style={styles.optionalBadgeText}>OPTIONAL</Text></View>
                       }
                     </View>
                     <Text style={styles.docHint}>{doc.hint}</Text>
@@ -267,13 +277,13 @@ export default function AddVehicleScreen({ navigation }) {
                 <View style={styles.docRight}>
                   {uploaded ? (
                     <TouchableOpacity onPress={() => pickImage(doc.key)} activeOpacity={0.8}>
-                      <Image source={{ uri: uploaded.uri }} style={styles.docThumb} />
+                      <Image source={{ uri: uploaded.uri }} style={styles.docThumb} resizeMode="cover" />
                       <Text style={styles.docChangeText}>Change</Text>
                     </TouchableOpacity>
                   ) : (
-                    <TouchableOpacity style={styles.docUploadBtn} onPress={() => pickImage(doc.key)}>
+                    <TouchableOpacity style={styles.docUploadBtn} onPress={() => pickImage(doc.key)} activeOpacity={0.8}>
                       <Text style={styles.docUploadIcon}>⬆️</Text>
-                      <Text style={styles.docUploadText}>Upload</Text>
+                      <Text style={styles.docUploadText}>UPLOAD</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -287,9 +297,10 @@ export default function AddVehicleScreen({ navigation }) {
           style={[styles.btn, loading && styles.btnDisabled]}
           onPress={handleCreate}
           disabled={loading}
+          activeOpacity={0.8}
         >
           {loading
-            ? <ActivityIndicator color="#fff" />
+            ? <ActivityIndicator color={colors.surface} />
             : <Text style={styles.btnText}>Submit for Approval 🚀</Text>
           }
         </TouchableOpacity>
@@ -299,63 +310,63 @@ export default function AddVehicleScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container:       { flexGrow: 1, backgroundColor: '#F8FAFC', padding: 20, paddingBottom: 50 },
-  header:          { marginBottom: 20, marginTop: 10 },
-  title:           { fontSize: 28, fontWeight: '900', color: '#0F172A' },
-  subtitle:        { color: '#64748B', marginTop: 4, fontSize: 15, fontWeight: '500' },
+const getStyles = (COLORS) => StyleSheet.create({
+  container:       { flexGrow: 1, backgroundColor: COLORS.background, padding: 20, paddingBottom: 60 },
+  greenHeader: { backgroundColor: COLORS.headerGradientStart, paddingTop: 50, paddingBottom: 24, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, marginBottom: 16 , marginHorizontal: -20, marginTop: -20},
+  title: { fontSize: 26, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
+  subtitle:        { color: 'rgba(255,255,255,0.7)', marginTop: 4, fontSize: 14, fontWeight: '600' },
 
-  imagePicker:     { borderRadius: 20, overflow: 'hidden', marginBottom: 8, height: 200 },
+  imagePicker:     { borderRadius: SIZES.radius, overflow: 'hidden', marginBottom: 8, height: 220, borderWidth: 2, borderColor: COLORS.border, borderStyle: 'dashed', backgroundColor: COLORS.surface },
   previewImage:    { width: '100%', height: '100%' },
-  imagePlaceholder:{ flex: 1, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#C7D2FE', borderStyle: 'dashed', borderRadius: 20 },
-  imagePlaceholderIcon: { fontSize: 40, marginBottom: 8 },
-  imagePlaceholderText: { fontSize: 16, fontWeight: '800', color: PRIMARY },
-  imagePlaceholderSub:  { fontSize: 12, color: '#64748B', marginTop: 4, fontWeight: '500' },
-  changeImageBtn:  { alignItems: 'center', marginBottom: 16, padding: 8 },
-  changeImageText: { color: PRIMARY, fontWeight: '700', fontSize: 14 },
+  imagePlaceholder:{ flex: 1, alignItems: 'center', justifyContent: 'center' },
+  imagePlaceholderIcon: { fontSize: 44, marginBottom: 12 },
+  imagePlaceholderText: { fontSize: 16, fontWeight: '800', color: COLORS.primary },
+  imagePlaceholderSub:  { fontSize: 13, color: COLORS.textSecondary, marginTop: 6, fontWeight: '600' },
+  changeImageBtn:  { alignItems: 'flex-start', marginBottom: 20, paddingVertical: 8 },
+  changeImageText: { color: COLORS.primary, fontWeight: '800', fontSize: 14 },
 
-  card:            { backgroundColor: '#fff', borderRadius: 20, padding: 20, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10 },
-  sectionHeader:   { fontSize: 18, fontWeight: '800', color: PRIMARY, marginBottom: 14, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  card:            { backgroundColor: COLORS.surface, borderRadius: SIZES.radius, padding: 20, ...SHADOWS.card, borderWidth: 1, borderColor: COLORS.border },
+  sectionHeader:   { fontSize: 18, fontWeight: '900', color: COLORS.primary, marginBottom: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border, letterSpacing: -0.2 },
 
   row:             { flexDirection: 'row', justifyContent: 'space-between' },
-  label:           { fontSize: 13, fontWeight: '700', color: '#334155', marginBottom: 6 },
-  input:           { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, padding: 14, fontSize: 15, color: '#0F172A', marginBottom: 16, backgroundColor: '#F8FAFC' },
-  textArea:        { minHeight: 80, textAlignVertical: 'top' },
-  sectionLayout:   { marginBottom: 16 },
+  label:           { fontSize: 13, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 8, letterSpacing: -0.2 },
+  input:           { borderWidth: 1, borderColor: COLORS.border, borderRadius: SIZES.radius, padding: 16, fontSize: 15, color: COLORS.textPrimary, marginBottom: 20, backgroundColor: COLORS.background, fontWeight: '500' },
+  textArea:        { minHeight: 100, textAlignVertical: 'top', paddingTop: 16 },
+  sectionLayout:   { marginBottom: 20 },
   chipScroll:      { overflow: 'visible' },
   chipContainer:   { flexDirection: 'row', paddingVertical: 4 },
-  chip:            { backgroundColor: '#F1F5F9', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, marginRight: 10, borderWidth: 1, borderColor: '#CBD5E1' },
-  chipSelected:    { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  chipText:        { color: '#475569', fontWeight: '600', fontSize: 14 },
-  chipTextSelected:{ color: '#fff' },
+  chip:            { backgroundColor: COLORS.background, paddingHorizontal: 16, paddingVertical: 10, borderRadius: SIZES.radiusPill, marginRight: 10, borderWidth: 1, borderColor: COLORS.border },
+  chipSelected:    { backgroundColor: COLORS.primary, borderColor: COLORS.primary, ...SHADOWS.float },
+  chipText:        { color: COLORS.textSecondary, fontWeight: '700', fontSize: 13 },
+  chipTextSelected:{ color: COLORS.surface },
 
   // Document Vault
-  vaultHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-  progressPill:    { backgroundColor: '#EEF2FF', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
-  progressText:    { color: PRIMARY, fontWeight: '800', fontSize: 12 },
-  vaultSubtitle:   { fontSize: 13, color: '#64748B', marginBottom: 16, lineHeight: 18 },
+  vaultHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  progressPill:    { backgroundColor: COLORS.primary + '15', paddingHorizontal: 12, paddingVertical: 6, borderRadius: SIZES.radiusPill },
+  progressText:    { color: COLORS.primary, fontWeight: '800', fontSize: 11, textTransform: 'uppercase' },
+  vaultSubtitle:   { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 20, lineHeight: 20, fontWeight: '500' },
 
-  docCard:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 1.5, borderColor: '#E2E8F0' },
-  docCardUploaded: { borderColor: '#86EFAC', backgroundColor: '#F0FDF4' },
-  docLeft:         { flexDirection: 'row', alignItems: 'flex-start', flex: 1, marginRight: 10 },
-  docIcon:         { fontSize: 26, marginRight: 12, marginTop: 2 },
-  docTitleRow:     { flexDirection: 'row', alignItems: 'center', marginBottom: 3, flexWrap: 'wrap' },
-  docLabel:        { fontSize: 14, fontWeight: '800', color: '#0F172A', marginRight: 6 },
-  requiredBadge:   { backgroundColor: '#FEE2E2', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
-  requiredBadgeText:{ color: '#DC2626', fontSize: 10, fontWeight: '800' },
-  optionalBadge:   { backgroundColor: '#F1F5F9', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
-  optionalBadgeText:{ color: '#64748B', fontSize: 10, fontWeight: '700' },
-  docHint:         { fontSize: 12, color: '#64748B', lineHeight: 16 },
-  docUploaded:     { fontSize: 12, color: '#16A34A', fontWeight: '700', marginTop: 4 },
+  docCard:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: COLORS.surfaceHighlight, borderRadius: SIZES.radius, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
+  docCardUploaded: { borderColor: COLORS.success + '80', backgroundColor: COLORS.success + '05' },
+  docLeft:         { flexDirection: 'row', alignItems: 'flex-start', flex: 1, marginRight: 12 },
+  docIcon:         { fontSize: 28, marginRight: 12, marginTop: 0 },
+  docTitleRow:     { flexDirection: 'row', alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' },
+  docLabel:        { fontSize: 14, fontWeight: '800', color: COLORS.textPrimary, marginRight: 8 },
+  requiredBadge:   { backgroundColor: COLORS.error + '15', paddingHorizontal: 8, paddingVertical: 3, borderRadius: SIZES.radiusPill, marginBottom: 4 },
+  requiredBadgeText:{ color: COLORS.error, fontSize: 9, fontWeight: '900', letterSpacing: 0.5 },
+  optionalBadge:   { backgroundColor: COLORS.background, paddingHorizontal: 8, paddingVertical: 3, borderRadius: SIZES.radiusPill, borderWidth: 1, borderColor: COLORS.border, marginBottom: 4 },
+  optionalBadgeText:{ color: COLORS.textSecondary, fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
+  docHint:         { fontSize: 12, color: COLORS.textSecondary, lineHeight: 18, fontWeight: '500' },
+  docUploaded:     { fontSize: 12, color: COLORS.success, fontWeight: '800', marginTop: 6 },
 
-  docRight:        { alignItems: 'center' },
-  docThumb:        { width: 60, height: 60, borderRadius: 10, marginBottom: 4 },
-  docChangeText:   { fontSize: 11, color: PRIMARY, fontWeight: '700', textAlign: 'center' },
-  docUploadBtn:    { width: 60, height: 60, borderRadius: 10, backgroundColor: '#EEF2FF', borderWidth: 1.5, borderColor: '#C7D2FE', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  docRight:        { alignItems: 'center', justifyContent: 'center' },
+  docThumb:        { width: 64, height: 64, borderRadius: SIZES.radius, marginBottom: 6 },
+  docChangeText:   { fontSize: 11, color: COLORS.primary, fontWeight: '800', textAlign: 'center' },
+  docUploadBtn:    { width: 64, height: 64, borderRadius: SIZES.radius, backgroundColor: COLORS.background, borderWidth: 1.5, borderColor: COLORS.border, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
   docUploadIcon:   { fontSize: 20 },
-  docUploadText:   { fontSize: 10, color: PRIMARY, fontWeight: '800', marginTop: 2 },
+  docUploadText:   { fontSize: 10, color: COLORS.primary, fontWeight: '900', marginTop: 4 },
 
-  btn:             { backgroundColor: PRIMARY, borderRadius: 14, padding: 18, alignItems: 'center', marginTop: 20 },
+  btn:             { backgroundColor: COLORS.success, borderRadius: SIZES.radius, padding: 18, alignItems: 'center', marginTop: 24, ...SHADOWS.float },
   btnDisabled:     { opacity: 0.7 },
-  btnText:         { color: '#fff', fontWeight: '900', fontSize: 16, letterSpacing: 0.3 },
+  btnText:         { color: COLORS.surface, fontWeight: '900', fontSize: 16, letterSpacing: 0.5 },
 });

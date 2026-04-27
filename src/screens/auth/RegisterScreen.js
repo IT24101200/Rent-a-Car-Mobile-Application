@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform,
+  StyleSheet, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, StatusBar,
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import api from '../../api/api';
+import { SIZES, SHADOWS } from '../../theme/theme';
 
-const PRIMARY = '#1E3A8A';
-const ROLES   = ['Customer', 'Car Owner']; // Admin accounts are pre-created by system
+const ROLES   = ['Customer', 'Car Owner'];
 
 export default function RegisterScreen({ navigation }) {
   const { login } = useAuth();
+  const { colors } = useTheme();
 
   const [name,     setName]     = useState('');
   const [email,    setEmail]    = useState('');
@@ -19,6 +21,8 @@ export default function RegisterScreen({ navigation }) {
   const [role,     setRole]     = useState('Customer');
   const [errors,   setErrors]   = useState({});
   const [loading,  setLoading]  = useState(false);
+
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
 
   const validate = () => {
     const e = {};
@@ -58,121 +62,107 @@ export default function RegisterScreen({ navigation }) {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <View style={styles.header}>
-          <Text style={styles.logo}>🔑</Text>
-          <Text style={styles.appName}>Join DriveEase</Text>
-          <Text style={styles.tagline}>Create your account in seconds</Text>
-        </View>
+    <View style={styles.screen}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.headerGradientStart} />
+      
+      {/* ── Emerald Green Header ──────────────────────────────── */}
+      <View style={styles.greenHeader}>
+        <Text style={styles.brandName}>Create Account</Text>
+        <Text style={styles.tagline}>Join DriveEase today</Text>
+      </View>
 
-        <View style={styles.card}>
-          <Text style={styles.title}>Create Account</Text>
-
+      {/* ── White Form Card ───────────────────────────────────── */}
+      <KeyboardAvoidingView style={styles.formArea} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={styles.formScroll} keyboardShouldPersistTaps="handled">
+          
           {/* Full Name */}
-          <Text style={styles.label}>Full Name</Text>
-          <TextInput
-            style={[styles.input, errors.name && styles.inputError]}
-            placeholder="John Doe"
-            placeholderTextColor="#aaa"
-            value={name}
-            onChangeText={setName}
-          />
+          <Text style={styles.label}>FULL NAME</Text>
+          <View style={[styles.inputWrapper, errors.name && styles.inputError]}>
+            <Text style={styles.inputIcon}>👤</Text>
+            <TextInput style={styles.input} placeholder="John Doe" placeholderTextColor={colors.textMuted} value={name} onChangeText={setName} />
+          </View>
           {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
 
           {/* Email */}
-          <Text style={styles.label}>Email Address</Text>
-          <TextInput
-            style={[styles.input, errors.email && styles.inputError]}
-            placeholder="you@example.com"
-            placeholderTextColor="#aaa"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={setEmail}
-          />
+          <Text style={styles.label}>EMAIL ADDRESS</Text>
+          <View style={[styles.inputWrapper, errors.email && styles.inputError]}>
+            <Text style={styles.inputIcon}>✉️</Text>
+            <TextInput style={styles.input} placeholder="you@example.com" placeholderTextColor={colors.textMuted} keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} />
+          </View>
           {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
 
-          {/* Password */}
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={[styles.input, errors.password && styles.inputError]}
-            placeholder="At least 6 characters"
-            placeholderTextColor="#aaa"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
-          {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
-
-          {/* Confirm Password */}
-          <Text style={styles.label}>Confirm Password</Text>
-          <TextInput
-            style={[styles.input, errors.confirm && styles.inputError]}
-            placeholder="Re-enter your password"
-            placeholderTextColor="#aaa"
-            secureTextEntry
-            value={confirm}
-            onChangeText={setConfirm}
-          />
-          {errors.confirm && <Text style={styles.errorText}>{errors.confirm}</Text>}
-
           {/* Role Selection */}
-          <Text style={styles.label}>I am a...</Text>
+          <Text style={styles.label}>ACCOUNT TYPE</Text>
           <View style={styles.roleRow}>
             {ROLES.map((r) => (
-              <TouchableOpacity
-                key={r}
-                style={[styles.roleBtn, role === r && styles.roleBtnActive]}
-                onPress={() => setRole(r)}
-              >
+              <TouchableOpacity key={r} style={[styles.roleBtn, role === r && styles.roleBtnActive]} onPress={() => setRole(r)} activeOpacity={0.8}>
+                <Text style={styles.roleEmoji}>{r === 'Customer' ? '👤' : '🔑'}</Text>
                 <Text style={[styles.roleBtnText, role === r && styles.roleBtnTextActive]}>{r}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
+          {/* Password */}
+          <Text style={styles.label}>PASSWORD</Text>
+          <View style={[styles.inputWrapper, errors.password && styles.inputError]}>
+            <Text style={styles.inputIcon}>🔒</Text>
+            <TextInput style={styles.input} placeholder="At least 6 characters" placeholderTextColor={colors.textMuted} secureTextEntry value={password} onChangeText={setPassword} />
+          </View>
+          {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+
+          {/* Confirm */}
+          <Text style={styles.label}>CONFIRM PASSWORD</Text>
+          <View style={[styles.inputWrapper, errors.confirm && styles.inputError]}>
+            <Text style={styles.inputIcon}>✓</Text>
+            <TextInput style={styles.input} placeholder="Re-enter password" placeholderTextColor={colors.textMuted} secureTextEntry value={confirm} onChangeText={setConfirm} />
+          </View>
+          {errors.confirm && <Text style={styles.errorText}>{errors.confirm}</Text>}
+
           {/* Submit */}
-          <TouchableOpacity
-            style={[styles.btn, loading && styles.btnDisabled]}
-            onPress={handleRegister}
-            disabled={loading}
-          >
-            {loading
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.btnText}>Create Account</Text>
-            }
+          <TouchableOpacity style={[styles.btn, loading && styles.btnDisabled]} onPress={handleRegister} disabled={loading} activeOpacity={0.8}>
+            {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.btnText}>Create Account</Text>}
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.linkRow}>
             <Text style={styles.linkText}>Already have an account? <Text style={styles.link}>Sign In</Text></Text>
           </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container:         { flexGrow: 1, backgroundColor: '#F0F4FF', padding: 20 },
-  header:            { alignItems: 'center', marginBottom: 24, marginTop: 40 },
-  logo:              { fontSize: 50 },
-  appName:           { fontSize: 28, fontWeight: '800', color: PRIMARY, marginTop: 8 },
-  tagline:           { color: '#555', fontSize: 14, marginTop: 4 },
-  card:              { backgroundColor: '#fff', borderRadius: 20, padding: 28, elevation: 6, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12 },
-  title:             { fontSize: 22, fontWeight: '700', color: '#1a1a1a', marginBottom: 20 },
-  label:             { fontSize: 13, fontWeight: '600', color: '#333', marginBottom: 6, marginTop: 10 },
-  input:             { borderWidth: 1.5, borderColor: '#E0E0E0', borderRadius: 12, padding: 14, fontSize: 15, color: '#111', backgroundColor: '#FAFAFA' },
-  inputError:        { borderColor: '#EF4444' },
-  errorText:         { color: '#EF4444', fontSize: 12, marginTop: 4 },
-  roleRow:           { flexDirection: 'row', gap: 8, marginBottom: 8 },
-  roleBtn:           { flex: 1, padding: 10, borderRadius: 10, borderWidth: 1.5, borderColor: '#E0E0E0', alignItems: 'center' },
-  roleBtnActive:     { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  roleBtnText:       { color: '#555', fontWeight: '600', fontSize: 13 },
-  roleBtnTextActive: { color: '#fff' },
-  btn:               { backgroundColor: PRIMARY, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 20 },
-  btnDisabled:       { opacity: 0.7 },
-  btnText:           { color: '#fff', fontWeight: '700', fontSize: 16 },
-  linkRow:           { marginTop: 20, alignItems: 'center' },
-  linkText:          { color: '#555', fontSize: 14 },
-  link:              { color: PRIMARY, fontWeight: '700' },
+const getStyles = (C) => StyleSheet.create({
+  screen:       { flex: 1, backgroundColor: C.background },
+  
+  greenHeader:  { backgroundColor: C.headerGradientStart, paddingTop: 60, paddingBottom: 30, alignItems: 'center', borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
+  brandName:    { fontSize: 26, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
+  tagline:      { fontSize: 14, color: 'rgba(255,255,255,0.7)', marginTop: 4, fontWeight: '500' },
+
+  formArea:     { flex: 1, marginTop: -16, backgroundColor: C.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, ...SHADOWS.card },
+  formScroll:   { padding: 24, paddingBottom: 40 },
+  
+  label:        { fontSize: 11, fontWeight: '700', color: C.textSecondary, marginBottom: 8, letterSpacing: 0.5, marginTop: 16 },
+  
+  inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.background, borderWidth: 1, borderColor: C.border, borderRadius: SIZES.radius, height: SIZES.inputHeight, paddingHorizontal: 16 },
+  inputIcon:    { fontSize: 16, marginRight: 12, opacity: 0.6 },
+  input:        { flex: 1, fontSize: 15, color: C.textPrimary, height: '100%' },
+  inputError:   { borderColor: C.error },
+  errorText:    { color: C.error, fontSize: 12, marginTop: 6, marginLeft: 4, fontWeight: '600' },
+  
+  roleRow:      { flexDirection: 'row', gap: 12, marginTop: 4 },
+  roleBtn:      { flex: 1, height: 64, borderRadius: SIZES.radius, borderWidth: 1, borderColor: C.border, backgroundColor: C.background, justifyContent: 'center', alignItems: 'center' },
+  roleBtnActive:{ backgroundColor: C.primary, borderColor: C.primary },
+  roleEmoji:    { fontSize: 20, marginBottom: 4 },
+  roleBtnText:  { color: C.textSecondary, fontWeight: '700', fontSize: 13 },
+  roleBtnTextActive: { color: '#FFFFFF' },
+
+  btn:          { backgroundColor: C.primary, borderRadius: SIZES.radius, height: SIZES.inputHeight + 4, justifyContent: 'center', alignItems: 'center', marginTop: 28, ...SHADOWS.float },
+  btnDisabled:  { opacity: 0.7 },
+  btnText:      { color: '#FFFFFF', fontWeight: '700', fontSize: 16 },
+  
+  linkRow:      { marginTop: 24, alignItems: 'center' },
+  linkText:     { color: C.textSecondary, fontSize: 14 },
+  link:         { color: C.primary, fontWeight: '800' },
 });
+

@@ -1,24 +1,29 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, Image,
-  ActivityIndicator, Alert, SafeAreaView, RefreshControl, TextInput, Modal, ScrollView, Platform
+  ActivityIndicator, Alert, RefreshControl, TextInput, Modal, ScrollView, Platform, StatusBar
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import api, { BASE_URL } from '../../api/api';
+import { useTheme } from '../../context/ThemeContext';
+import { SIZES, SHADOWS } from '../../theme/theme';
 
-const PRIMARY = '#1E3A8A';
 
-const STATUS_COLOR = {
-  confirmed: { bg: '#DBEAFE', text: '#2563EB', label: '✅ Confirmed' },
-  active:    { bg: '#DCFCE7', text: '#16A34A', label: '🚗 Active Trip' },
-  returning: { bg: '#FEF3C7', text: '#D97706', label: '⏳ Verifying Return' },
-  pending:   { bg: '#FEF3C7', text: '#92400E', label: '⏳ Pending'   },
-  cancelled: { bg: '#FEE2E2', text: '#DC2626', label: '❌ Cancelled'  },
-  completed: { bg: '#F1F5F9', text: '#475569', label: '🔒 Completed'  },
-};
 
 export default function MyBookingsScreen() {
+  const { colors, isDark } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
+  const STATUS_COLOR = {
+    confirmed: { bg: colors.info + '20', text: colors.info, label: 'Confirmed' },
+    active:    { bg: colors.success + '20', text: colors.success, label: 'Active Trip' },
+    returning: { bg: colors.warning + '20', text: colors.warning, label: 'Verifying Return' },
+    pending:   { bg: colors.warning + '20', text: colors.warning, label: 'Pending'   },
+    cancelled: { bg: colors.error + '20', text: colors.error, label: 'Cancelled'  },
+    completed: { bg: colors.surfaceHighlight, text: colors.textSecondary, label: 'Completed'  },
+  };
+
   const [bookings,   setBookings]   = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -212,7 +217,7 @@ export default function MyBookingsScreen() {
   };
 
   if (loading) {
-    return <SafeAreaView style={styles.center}><ActivityIndicator size="large" color={PRIMARY} /></SafeAreaView>;
+    return <View style={styles.center}><ActivityIndicator size="large" color={colors.primary} /></View>;
   }
 
   let newDays = 0;
@@ -220,11 +225,12 @@ export default function MyBookingsScreen() {
   const livePrice = newDays > 0 && rescheduleModal ? newDays * rescheduleModal.vehicle.pricePerDay : 0;
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <View style={styles.screen}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.headerGradientStart} />
       <FlatList
         data={displayData}
         keyExtractor={(item) => item._id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchBookings(true)} colors={[PRIMARY]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchBookings(true)} colors={[colors.primary]} tintColor={colors.primary} />}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={
           <View style={styles.emptyBox}>
@@ -249,38 +255,46 @@ export default function MyBookingsScreen() {
                 ) : (
                   <View style={styles.vehicleImgPlaceholder}><Text style={{fontSize: 24}}>🚗</Text></View>
                 )}
-                <View style={{flex: 1, marginLeft: 12}}>
-                  <Text style={styles.carName}>{item.vehicle?.makeAndModel || 'Vehicle'}</Text>
-                  <Text style={styles.licensePlate}>{item.vehicle?.licensePlate}</Text>
+                <View style={{flex: 1, marginLeft: 16}}>
+                  <Text style={styles.carName} numberOfLines={1}>{item.vehicle?.makeAndModel || 'Vehicle'}</Text>
+                  <Text style={styles.licensePlate} numberOfLines={1}>{item.vehicle?.licensePlate}</Text>
                 </View>
                 <View style={[styles.badge, { backgroundColor: sc.bg }]}>
+                  <View style={[styles.statusDot, { backgroundColor: sc.text }]} />
                   <Text style={[styles.badgeText, { color: sc.text }]}>{sc.label}</Text>
                 </View>
               </View>
               
               <View style={styles.metaRow}>
-                <Text style={styles.detailTitle}>Dates:</Text>
-                <Text style={styles.detailVal}>{new Date(item.startDate).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})} → {new Date(item.endDate).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</Text>
+                <Text style={styles.detailTitle}>Dates</Text>
+                <Text style={styles.detailVal}>{new Date(item.startDate).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}  →  {new Date(item.endDate).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</Text>
               </View>
               <View style={[styles.metaRow, { borderBottomWidth: 0, paddingBottom: 0, marginTop: 4 }]}>
-                <Text style={styles.detailTitle}>Total Price:</Text>
+                <Text style={styles.detailTitle}>Total Price</Text>
                 <Text style={styles.priceVal}>Rs. {item.totalPrice?.toLocaleString()}</Text>
               </View>
+
+              {item.status === 'cancelled' && item.cancellationReason && (
+                <View style={styles.systemNotice}>
+                  <Text style={styles.systemNoticeTitle}>System Notice:</Text>
+                  <Text style={styles.systemNoticeText}>{item.cancellationReason}</Text>
+                </View>
+              )}
 
               {/* Action Buttons for UPCOMING */}
               {activeTab === 'upcoming' && item.status === 'confirmed' && (
                 <View style={styles.actionGrid}>
                   {canCheckIn ? (
                     <TouchableOpacity style={styles.primaryActionBtn} onPress={() => openAccountability(item, 'checkin')}>
-                      <Text style={styles.primaryActionText}>🔑 Start Trip (Check-In)</Text>
+                      <Text style={styles.primaryActionText}>Start Trip (Check-In)</Text>
                     </TouchableOpacity>
                   ) : (
                     <>
                       <TouchableOpacity style={[styles.rescheduleBtn, cancelling === item._id && {opacity: 0.5}]} onPress={() => openReschedule(item)} disabled={cancelling === item._id}>
-                        <Text style={styles.rescheduleText}>📅 Reschedule</Text>
+                        <Text style={styles.rescheduleText}>Reschedule</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={[styles.cancelTripBtn, cancelling === item._id && {opacity: 0.5}]} onPress={() => cancelBooking(item._id)} disabled={cancelling === item._id}>
-                        {cancelling === item._id ? <ActivityIndicator size="small" color="#DC2626"/> : <Text style={styles.cancelTripText}>❌ Cancel</Text>}
+                        {cancelling === item._id ? <ActivityIndicator size="small" color={colors.error}/> : <Text style={styles.cancelTripText}>Cancel</Text>}
                       </TouchableOpacity>
                     </>
                   )}
@@ -291,7 +305,7 @@ export default function MyBookingsScreen() {
               {activeTab === 'active' && item.status === 'active' && (
                <View style={styles.actionRow}>
                  <TouchableOpacity style={styles.primaryActionBtn} onPress={() => openAccountability(item, 'checkout')}>
-                    <Text style={styles.primaryActionText}>🏁 End Trip (Check-Out)</Text>
+                    <Text style={styles.primaryActionText}>End Trip (Check-Out)</Text>
                  </TouchableOpacity>
                </View>
               )}
@@ -307,7 +321,7 @@ export default function MyBookingsScreen() {
               {item.status === 'completed' && activeTab === 'history' && (
                 <View style={styles.actionRow}>
                   <TouchableOpacity style={styles.feedbackBtn} onPress={() => setModal(item)}>
-                    <Text style={styles.feedbackBtnText}>⭐ Leave Feedback</Text>
+                    <Text style={styles.feedbackBtnText}>Leave Feedback</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -320,28 +334,28 @@ export default function MyBookingsScreen() {
       <Modal visible={!!modal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <ScrollView contentContainerStyle={styles.modalBox}>
-            <Text style={styles.modalTitle}>⭐ Feedback</Text>
+            <Text style={styles.modalTitle}>Feedback</Text>
             <Text style={styles.modalSub}>{modal?.vehicle?.makeAndModel}</Text>
 
             <Text style={styles.ratingLabel}>Rate Your Experience</Text>
             <View style={styles.stars}>
               {[1, 2, 3, 4, 5].map(n => (
                 <TouchableOpacity key={n} onPress={() => setRating(n)}>
-                  <Text style={[styles.star, { color: n <= rating ? '#F59E0B' : '#D1D5DB' }]}>★</Text>
+                  <Text style={[styles.star, { color: n <= rating ? colors.warning : '#E2E8F0' }]}>★</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             <Text style={styles.ratingLabel}>Comments</Text>
             <TextInput
-              style={styles.feedbackInput} placeholder="How was the ride? Anything to note?" placeholderTextColor="#94A3B8"
+              style={styles.feedbackInput} placeholder="How was the ride? Anything to note?" placeholderTextColor={colors.textMuted}
               multiline numberOfLines={4} value={feedback} onChangeText={setFeedback}
             />
 
             <TouchableOpacity style={[styles.submitBtn, submitting && { opacity: 0.7 }]} onPress={submitFeedback} disabled={submitting}>
-              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>Submit Feedback</Text>}
+              {submitting ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.submitBtnText}>Submit Feedback</Text>}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.cancelBtn} onPress={() => setModal(null)}><Text style={styles.cancelBtnText}>Cancel</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => setModal(null)}><Text style={styles.cancelBtnText}>Nevermind</Text></TouchableOpacity>
           </ScrollView>
         </View>
       </Modal>
@@ -351,7 +365,7 @@ export default function MyBookingsScreen() {
         <Modal visible animationType="slide" transparent>
           <View style={styles.modalOverlay}>
             <ScrollView contentContainerStyle={styles.modalBox}>
-              <Text style={styles.modalTitle}>{actionType === 'checkin' ? '🔑 Start Trip' : '🏁 End Trip'}</Text>
+              <Text style={styles.modalTitle}>{actionType === 'checkin' ? 'Start Trip' : 'End Trip'}</Text>
               <Text style={styles.modalSub}>Record vehicle condition to protect yourself.</Text>
 
               <Text style={styles.ratingLabel}>Current Odometer (km)</Text>
@@ -360,17 +374,17 @@ export default function MyBookingsScreen() {
               <Text style={styles.ratingLabel}>Dashboard / Condition Photo</Text>
               <TouchableOpacity style={styles.photoUploadBtn} onPress={pickConditionPhoto}>
                 {photoUri ? (
-                  <Image source={{ uri: photoUri }} style={{ width: '100%', height: 150, borderRadius: 10 }} resizeMode="cover" />
+                  <Image source={{ uri: photoUri }} style={{ width: '100%', height: 150, borderRadius: SIZES.radius }} resizeMode="cover" />
                 ) : (
                   <View style={{alignItems:'center'}}>
-                    <Text style={{fontSize: 32, marginBottom:8}}>📸</Text>
-                    <Text style={{color:'#64748B'}}>Tap to take/upload photo</Text>
+                    <Text style={{fontSize: 24, marginBottom:8}}>📸</Text>
+                    <Text style={{color:colors.textSecondary, fontWeight: '600'}}>Tap to upload condition photo</Text>
                   </View>
                 )}
               </TouchableOpacity>
 
               <TouchableOpacity style={[styles.primaryActionBtn, {marginTop: 20}]} onPress={submitAccountability} disabled={processingState}>
-                {processingState ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryActionText}>{actionType === 'checkin' ? 'Submit Check-In' : 'Submit Check-Out'}</Text>}
+                {processingState ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.primaryActionText}>{actionType === 'checkin' ? 'Submit Check-In' : 'Submit Check-Out'}</Text>}
               </TouchableOpacity>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setAccountabilityModal(null)} disabled={processingState}><Text style={styles.cancelBtnText}>Cancel</Text></TouchableOpacity>
             </ScrollView>
@@ -381,10 +395,9 @@ export default function MyBookingsScreen() {
       {/* ─── Reschedule Modal ───────────────────────────────── */}
       {rescheduleModal && (
         <Modal visible animationType="fade" transparent>
-          {/* Similar format as before but wrapped safely */}
           <View style={styles.modalOverlay}>
             <View style={[styles.modalBox, { paddingBottom: 20 }]}>
-              <Text style={styles.modalTitle}>📅 Reschedule Trip</Text>
+              <Text style={styles.modalTitle}>Reschedule Trip</Text>
               <Text style={styles.modalSub}>{rescheduleModal.vehicle?.makeAndModel}</Text>
 
               <View style={styles.datePickerContainer}>
@@ -394,8 +407,8 @@ export default function MyBookingsScreen() {
                     <DateTimePicker value={newStartDate} mode="datetime" display="default" minimumDate={new Date()} onChange={(e, d) => d && setNewStartDate(d)} />
                   ) : (
                     <View style={{flexDirection: 'row', gap: 5}}>
-                      <TouchableOpacity style={[styles.dateBtn, {flex: 1}]} onPress={() => setShowStartPicker(true)}><Text style={styles.dateBtnText}>{newStartDate.toLocaleDateString()}</Text></TouchableOpacity>
-                      <TouchableOpacity style={[styles.dateBtn, {flex: 1}]} onPress={() => setShowStartTimePicker(true)}><Text style={styles.dateBtnText}>{newStartDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</Text></TouchableOpacity>
+                      <TouchableOpacity style={styles.dateBtn} onPress={() => setShowStartPicker(true)}><Text style={styles.dateBtnText}>{newStartDate.toLocaleDateString()}</Text></TouchableOpacity>
+                      <TouchableOpacity style={styles.dateBtn} onPress={() => setShowStartTimePicker(true)}><Text style={styles.dateBtnText}>{newStartDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</Text></TouchableOpacity>
                     </View>
                   )}
                 </View>
@@ -405,8 +418,8 @@ export default function MyBookingsScreen() {
                     <DateTimePicker value={newEndDate} mode="datetime" display="default" minimumDate={newStartDate} onChange={(e, d) => d && setNewEndDate(d)} />
                   ) : (
                     <View style={{flexDirection: 'row', gap: 5}}>
-                      <TouchableOpacity style={[styles.dateBtn, {flex: 1}]} onPress={() => setShowEndPicker(true)}><Text style={styles.dateBtnText}>{newEndDate.toLocaleDateString()}</Text></TouchableOpacity>
-                      <TouchableOpacity style={[styles.dateBtn, {flex: 1}]} onPress={() => setShowEndTimePicker(true)}><Text style={styles.dateBtnText}>{newEndDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</Text></TouchableOpacity>
+                      <TouchableOpacity style={styles.dateBtn} onPress={() => setShowEndPicker(true)}><Text style={styles.dateBtnText}>{newEndDate.toLocaleDateString()}</Text></TouchableOpacity>
+                      <TouchableOpacity style={styles.dateBtn} onPress={() => setShowEndTimePicker(true)}><Text style={styles.dateBtnText}>{newEndDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</Text></TouchableOpacity>
                     </View>
                   )}
                 </View>
@@ -420,15 +433,17 @@ export default function MyBookingsScreen() {
 
               <View style={styles.rescheduleMetaBox}>
                 <View style={[styles.metaRow, { borderBottomWidth: 0, paddingBottom: 0, marginTop: 4 }]}>
-                  <Text style={styles.detailTitle}>New Total</Text>
+                  <Text style={styles.detailTitle}>New Total Price</Text>
                   <Text style={styles.priceVal}>Rs. {livePrice.toLocaleString()}</Text>
                 </View>
               </View>
 
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-                <TouchableOpacity style={[styles.cancelBtn, { flex: 1, backgroundColor: '#F1F5F9', borderRadius: 10, marginTop: 0 }]} onPress={() => setRescheduleModal(null)}><Text style={styles.cancelBtnText}>Nevermind</Text></TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 10 }}>
+                <TouchableOpacity style={[styles.cancelBtn, { flex: 1, backgroundColor: colors.surfaceHighlight, borderRadius: 10, marginTop: 0 }]} onPress={() => setRescheduleModal(null)}>
+                  <Text style={styles.cancelBtnText}>Nevermind</Text>
+                </TouchableOpacity>
                 <TouchableOpacity style={[styles.submitBtn, { flex: 2, padding: 14, marginTop: 0 }, (newDays <= 0 || rescheduling) && { opacity: 0.6 }]} onPress={submitReschedule} disabled={newDays <= 0 || rescheduling}>
-                  {rescheduling ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>Confirm Changes</Text>}
+                  {rescheduling ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.submitBtnText}>Confirm Changes</Text>}
                 </TouchableOpacity>
               </View>
             </View>
@@ -436,66 +451,76 @@ export default function MyBookingsScreen() {
         </Modal>
       )}
 
-    </SafeAreaView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  screen:          { flex: 1, backgroundColor: '#F8FAFC' },
+const getStyles = (C) => StyleSheet.create({
+  screen:          { flex: 1, backgroundColor: C.background },
   list:            { paddingBottom: 40 },
-  center:          { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  headerBox:       { backgroundColor: '#fff', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 10, marginBottom: 20 },
-  title:           { fontSize: 28, fontWeight: '900', color: '#0F172A', marginBottom: 16 },
-  tabContainer:    { flexDirection: 'row', backgroundColor: '#F1F5F9', borderRadius: 12, padding: 4 },
-  tabBtn:          { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
-  tabBtnActive:    { backgroundColor: '#fff', elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
-  tabText:         { fontSize: 13, fontWeight: '600', color: '#64748B' },
-  tabTextActive:   { color: PRIMARY, fontWeight: '800' },
-  emptyBox:        { alignItems: 'center', marginTop: 60, paddingHorizontal: 20 },
-  emptyEmoji:      { fontSize: 50, marginBottom: 12 },
-  emptyTitle:      { fontSize: 18, fontWeight: '800', color: '#334155' },
-  emptySub:        { color: '#64748B', marginTop: 6, textAlign: 'center', fontWeight: '500' },
-  card:            { backgroundColor: '#fff', borderRadius: 16, padding: 18, marginHorizontal: 16, marginBottom: 16, elevation: 3, borderWidth: 1, borderColor: '#E2E8F0', overflow: 'hidden' },
-  cardHeader:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
-  vehicleImg:      { width: 60, height: 60, borderRadius: 12 },
-  vehicleImgPlaceholder: { width: 60, height: 60, borderRadius: 12, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
-  carName:         { fontSize: 18, fontWeight: '800', color: '#0F172A' },
-  licensePlate:    { fontSize: 13, color: '#64748B', fontWeight: '600', marginTop: 2 },
-  badge:           { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, marginLeft: 8 },
-  badgeText:       { fontSize: 11, fontWeight: '800' },
-  metaRow:         { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#F1F5F9', paddingBottom: 8, marginBottom: 8, alignItems: 'center' },
-  detailTitle:     { color: '#64748B', fontSize: 13, fontWeight: '600' },
-  detailVal:       { color: '#1E293B', fontSize: 13, fontWeight: '700' },
-  priceVal:        { color: '#059669', fontSize: 18, fontWeight: '800' },
-  actionRow:       { borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 14, marginTop: 12 },
-  actionGrid:      { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 14, marginTop: 12, gap: 10 },
-  primaryActionBtn:{ flex: 1, backgroundColor: '#10B981', paddingVertical: 14, borderRadius: 10, alignItems: 'center' },
-  primaryActionText:{ color: '#fff', fontSize: 15, fontWeight: '800' },
-  cancelTripBtn:   { flex: 1, backgroundColor: '#FEE2E2', paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
-  cancelTripText:  { color: '#DC2626', fontWeight: '800', fontSize: 14 },
-  rescheduleBtn:   { flex: 1.5, backgroundColor: '#EFF6FF', paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
-  rescheduleText:  { color: PRIMARY, fontWeight: '800', fontSize: 14 },
-  feedbackBtn:     { backgroundColor: '#FEF3C7', paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
-  feedbackBtnText: { color: '#92400E', fontWeight: '800', fontSize: 14 },
-  activePill:      { backgroundColor: '#F0FDF4', paddingVertical: 12, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: '#86EFAC' },
-  activePillText:  { color: '#16A34A', fontWeight: '800', fontSize: 13 },
-  modalOverlay:    { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalBox:        { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 28, paddingBottom: 40 },
-  modalTitle:      { fontSize: 24, fontWeight: '900', color: PRIMARY, marginBottom: 4 },
-  modalSub:        { color: '#64748B', marginBottom: 20, fontWeight: '600' },
-  ratingLabel:     { fontSize: 14, fontWeight: '700', color: '#0F172A', marginBottom: 8 },
+  center:          { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.background },
+  headerBox:       { backgroundColor: C.headerGradientStart, paddingHorizontal: 20, paddingTop: 50, paddingBottom: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, marginBottom: 8 },
+  title: { fontSize: 26, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5, marginBottom: 20 },
+  tabContainer:    { flexDirection: 'row', backgroundColor: C.surfaceHighlight, borderRadius: SIZES.radiusPill, padding: 4 },
+  tabBtn:          { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: SIZES.radiusPill },
+  tabBtnActive:    { backgroundColor: C.surface, ...SHADOWS.float },
+  tabText:         { fontSize: 13, fontWeight: '700', color: C.textSecondary },
+  tabTextActive:   { color: C.primary, fontWeight: '800' },
+  emptyBox:        { alignItems: 'center', marginTop: 80, paddingHorizontal: 20 },
+  emptyEmoji:      { fontSize: 60, marginBottom: 16 },
+  emptyTitle:      { fontSize: 18, fontWeight: '800', color: C.textPrimary, marginBottom: 8 },
+  emptySub:        { color: C.textSecondary, textAlign: 'center', fontWeight: '500' },
+  
+  card:            { backgroundColor: C.surface, borderRadius: SIZES.radius, padding: 20, marginHorizontal: 20, marginBottom: 20, ...SHADOWS.card, borderWidth: 1, borderColor: C.border, overflow: 'hidden' },
+  cardHeader:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
+  vehicleImg:      { width: 64, height: 64, borderRadius: SIZES.radius },
+  vehicleImgPlaceholder: { width: 64, height: 64, borderRadius: SIZES.radius, backgroundColor: C.surfaceHighlight, alignItems: 'center', justifyContent: 'center' },
+  carName:         { fontSize: 18, fontWeight: '800', color: C.textPrimary },
+  licensePlate:    { fontSize: 12, color: C.textMuted, fontWeight: '700', marginTop: 4, letterSpacing: 0.5 },
+  badge:           { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: SIZES.radiusPill, marginLeft: 8 },
+  statusDot:       { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
+  badgeText:       { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  
+  metaRow:         { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: C.border, paddingBottom: 12, marginBottom: 12, alignItems: 'center' },
+  detailTitle:     { color: C.textSecondary, fontSize: 13, fontWeight: '600' },
+  detailVal:       { color: C.textPrimary, fontSize: 13, fontWeight: '700' },
+  priceVal:        { color: C.primary, fontSize: 18, fontWeight: '900' },
+  
+  systemNotice:    { backgroundColor: C.error + '10', padding: 12, borderRadius: 10, marginTop: 12, borderWidth: 1, borderColor: C.error + '30' },
+  systemNoticeTitle: { fontSize: 12, fontWeight: '800', color: C.error, marginBottom: 4 },
+  systemNoticeText:  { fontSize: 13, color: C.error, lineHeight: 20, fontWeight: '500' },
+
+  actionRow:       { borderTopWidth: 1, borderTopColor: C.border, paddingTop: 16, marginTop: 12 },
+  actionGrid:      { flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.border, paddingTop: 16, marginTop: 12, gap: 12 },
+  primaryActionBtn:{ flex: 1, backgroundColor: C.primary, paddingVertical: 14, borderRadius: 10, alignItems: 'center', ...SHADOWS.float },
+  primaryActionText:{ color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  cancelTripBtn:   { flex: 1, backgroundColor: C.surface, paddingVertical: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: C.error },
+  cancelTripText:  { color: C.error, fontWeight: '800', fontSize: 14 },
+  rescheduleBtn:   { flex: 1.5, backgroundColor: C.surfaceHighlight, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+  rescheduleText:  { color: C.textPrimary, fontWeight: '800', fontSize: 14 },
+  feedbackBtn:     { backgroundColor: C.surfaceHighlight, paddingVertical: 14, borderRadius: 10, alignItems: 'center' },
+  feedbackBtnText: { color: C.textPrimary, fontWeight: '800', fontSize: 14 },
+  activePill:      { backgroundColor: C.success + '10', paddingVertical: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: C.success + '30' },
+  activePillText:  { color: C.success, fontWeight: '800', fontSize: 13 },
+  
+  modalOverlay:    { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' },
+  modalBox:        { backgroundColor: C.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 28, paddingBottom: 40 },
+  modalTitle:      { fontSize: 24, fontWeight: '900', color: C.textPrimary, letterSpacing: -0.5, marginBottom: 8 },
+  modalSub:        { color: C.textSecondary, marginBottom: 24, fontWeight: '600' },
+  ratingLabel:     { fontSize: 13, fontWeight: '800', color: C.textSecondary, textTransform: 'uppercase', marginBottom: 12 },
   stars:           { flexDirection: 'row', gap: 8, marginBottom: 24 },
   star:            { fontSize: 36 },
-  feedbackInput:   { borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 12, padding: 14, fontSize: 15, color: '#0F172A', minHeight: 100, textAlignVertical: 'top', marginBottom: 24, backgroundColor: '#F8FAFC' },
-  submitBtn:       { backgroundColor: PRIMARY, borderRadius: 12, padding: 16, alignItems: 'center' },
-  submitBtnText:   { color: '#fff', fontWeight: '800', fontSize: 16 },
-  cancelBtn:       { marginTop: 12, alignItems: 'center', padding: 14 },
-  cancelBtnText:   { color: '#64748B', fontWeight: '700' },
-  photoUploadBtn:  { backgroundColor: '#F8FAFC', borderWidth: 2, borderColor: '#E2E8F0', borderStyle: 'dashed', borderRadius: 12, padding: 24, alignItems: 'center', justifyContent: 'center' },
+  feedbackInput:   { borderWidth: 1, borderColor: C.border, borderRadius: SIZES.radius, padding: 16, fontSize: 15, color: C.textPrimary, minHeight: 120, textAlignVertical: 'top', marginBottom: 24, backgroundColor: C.background },
+  submitBtn:       { backgroundColor: C.primary, borderRadius: SIZES.radius, padding: 16, alignItems: 'center', ...SHADOWS.float },
+  submitBtnText:   { color: '#FFFFFF', fontWeight: '800', fontSize: 16 },
+  cancelBtn:       { marginTop: 16, alignItems: 'center', padding: 14 },
+  cancelBtnText:   { color: C.textSecondary, fontWeight: '700' },
+  photoUploadBtn:  { backgroundColor: C.background, borderWidth: 2, borderColor: C.border, borderStyle: 'dashed', borderRadius: SIZES.radius, padding: 32, alignItems: 'center', justifyContent: 'center' },
+  
   datePickerContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  datePickerCol:   { width: '48%' },
-  datePickerLabel: { fontSize: 14, fontWeight: '700', color: '#475569', marginBottom: 6 },
-  dateBtn:         { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#CBD5E1', paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
-  dateBtnText:     { fontSize: 14, color: '#0F172A', fontWeight: '600' },
-  rescheduleMetaBox: { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 16, marginBottom: 24, borderWidth: 1, borderColor: '#E2E8F0' },
+  datePickerCol:   { width: '47%' },
+  datePickerLabel: { fontSize: 12, fontWeight: '800', color: C.textSecondary, textTransform: 'uppercase', marginBottom: 8 },
+  dateBtn:         { flex: 1, backgroundColor: C.background, borderWidth: 1, borderColor: C.border, paddingVertical: 14, borderRadius: 10, alignItems: 'center' },
+  dateBtnText:     { fontSize: 14, color: C.textPrimary, fontWeight: '700' },
+  rescheduleMetaBox: { backgroundColor: C.surfaceHighlight, borderRadius: SIZES.radius, padding: 16, marginBottom: 24 }
 });

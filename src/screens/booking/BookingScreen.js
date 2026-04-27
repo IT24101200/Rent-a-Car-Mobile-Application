@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Alert, ActivityIndicator, Platform, SafeAreaView,
-} from 'react-native';
-
-const PRIMARY = '#1E3A8A';
+  Alert, ActivityIndicator, Platform,
+} from 'react-native';import { useTheme } from '../../context/ThemeContext';
+import { SIZES, SHADOWS } from '../../theme/theme';
 
 // Simple date picker helper (no extra library needed)
-const DatePickerRow = ({ label, date, onDecrement, onIncrement }) => (
+const DatePickerRow = ({ label, date, onDecrement, onIncrement, styles }) => (
   <View style={styles.dateRow}>
     <Text style={styles.dateLabel}>{label}</Text>
     <View style={styles.dateControl}>
@@ -22,6 +21,8 @@ const addDays = (date, n) => { const d = new Date(date); d.setDate(d.getDate() +
 
 export default function BookingScreen({ route, navigation }) {
   const { vehicle } = route.params;
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
 
   const today = new Date();
   const [startDate, setStartDate] = useState(today);
@@ -45,7 +46,13 @@ export default function BookingScreen({ route, navigation }) {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F0F4FF' }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      {/* ── Green Header ── */}
+      <View style={styles.greenHeader}>
+        <Text style={styles.headerTitle}>Book Vehicle</Text>
+        <Text style={styles.headerSub}>{vehicle.makeAndModel}</Text>
+      </View>
+
       <ScrollView contentContainerStyle={styles.container}>
         {/* Vehicle Summary Card */}
         <View style={styles.vehicleCard}>
@@ -66,6 +73,7 @@ export default function BookingScreen({ route, navigation }) {
             date={startDate}
             onDecrement={() => setStartDate(d => addDays(d, -1))}
             onIncrement={() => setStartDate(d => addDays(d, 1))}
+            styles={styles}
           />
           <View style={styles.divider} />
           <DatePickerRow
@@ -73,6 +81,7 @@ export default function BookingScreen({ route, navigation }) {
             date={endDate}
             onDecrement={() => setEndDate(d => addDays(d, -1))}
             onIncrement={() => setEndDate(d => addDays(d, 1))}
+            styles={styles}
           />
         </View>
 
@@ -100,38 +109,42 @@ export default function BookingScreen({ route, navigation }) {
           disabled={loading}
         >
           {loading
-            ? <ActivityIndicator color="#fff" />
+            ? <ActivityIndicator color="#FFFFFF" />
             : <Text style={styles.btnText}>Proceed to Payment →</Text>
           }
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (C) => StyleSheet.create({
+  greenHeader:     { backgroundColor: C.headerGradientStart, paddingTop: 50, paddingBottom: 24, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
+  headerTitle:     { fontSize: 26, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
+  headerSub:       { color: 'rgba(255,255,255,0.7)', marginTop: 4, fontWeight: '500', fontSize: 14 },
   container:       { padding: 20, paddingBottom: 40 },
-  vehicleCard:     { backgroundColor: PRIMARY, borderRadius: 18, padding: 20, flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16, elevation: 6 },
+  vehicleCard:     { backgroundColor: C.primary, borderRadius: SIZES.radius, padding: 20, flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16, ...SHADOWS.float },
   vehicleEmoji:    { fontSize: 42 },
-  vehicleName:     { fontSize: 18, fontWeight: '800', color: '#fff' },
-  vehiclePlate:    { color: '#C7D2FE', marginTop: 4 },
-  vehiclePrice:    { color: '#A5F3FC', fontWeight: '700', marginTop: 2 },
-  card:            { backgroundColor: '#fff', borderRadius: 18, padding: 20, marginBottom: 16, elevation: 4 },
-  sectionTitle:    { fontSize: 16, fontWeight: '700', color: '#1a1a1a', marginBottom: 16 },
+  vehicleName:     { fontSize: 18, fontWeight: '800', color: '#FFFFFF' },
+  vehiclePlate:    { color: 'rgba(255,255,255,0.8)', marginTop: 4, fontWeight: '600' },
+  vehiclePrice:    { color: 'rgba(255,255,255,0.9)', fontWeight: '700', marginTop: 2 },
+  card:            { backgroundColor: C.surface, borderRadius: SIZES.radius, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: C.border, ...SHADOWS.card },
+  sectionTitle:    { fontSize: 16, fontWeight: '700', color: C.textPrimary, marginBottom: 16 },
   dateRow:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
-  dateLabel:       { fontSize: 15, color: '#555', fontWeight: '500' },
+  dateLabel:       { fontSize: 15, color: C.textSecondary, fontWeight: '500' },
   dateControl:     { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  dateBtn:         { backgroundColor: '#EEF2FF', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
-  dateBtnText:     { fontSize: 18, color: PRIMARY, fontWeight: '700' },
-  dateValue:       { fontSize: 14, fontWeight: '700', color: '#1a1a1a', minWidth: 110, textAlign: 'center' },
-  divider:         { height: 1, backgroundColor: '#F0F0F0', marginVertical: 10 },
+  dateBtn:         { backgroundColor: C.iconCircleBg, paddingHorizontal: 14, paddingVertical: 8, borderRadius: SIZES.radius },
+  dateBtnText:     { fontSize: 18, color: C.primary, fontWeight: '700' },
+  dateValue:       { fontSize: 14, fontWeight: '700', color: C.textPrimary, minWidth: 110, textAlign: 'center' },
+  divider:         { height: 1, backgroundColor: C.border, marginVertical: 10 },
   breakdownRow:    { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  breakdownLabel:  { color: '#666', fontSize: 15 },
-  breakdownValue:  { color: '#333', fontWeight: '600', fontSize: 15 },
-  totalRow:        { borderTopWidth: 1, borderTopColor: '#EEE', marginTop: 6, paddingTop: 12 },
-  totalLabel:      { fontSize: 17, fontWeight: '800', color: '#1a1a1a' },
-  totalValue:      { fontSize: 17, fontWeight: '800', color: PRIMARY },
-  btn:             { backgroundColor: PRIMARY, borderRadius: 14, padding: 18, alignItems: 'center', elevation: 4 },
+  breakdownLabel:  { color: C.textSecondary, fontSize: 15 },
+  breakdownValue:  { color: C.textPrimary, fontWeight: '600', fontSize: 15 },
+  totalRow:        { borderTopWidth: 1, borderTopColor: C.border, marginTop: 6, paddingTop: 12 },
+  totalLabel:      { fontSize: 17, fontWeight: '800', color: C.textPrimary },
+  totalValue:      { fontSize: 17, fontWeight: '800', color: C.primary },
+  btn:             { backgroundColor: C.primary, borderRadius: SIZES.radius, padding: 18, alignItems: 'center', ...SHADOWS.float },
   btnDisabled:     { opacity: 0.7 },
-  btnText:         { color: '#fff', fontWeight: '700', fontSize: 17 },
+  btnText:         { color: '#FFFFFF', fontWeight: '700', fontSize: 17 },
 });
+

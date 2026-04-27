@@ -14,6 +14,16 @@ const bookingSchema = new mongoose.Schema({
     default: 'confirmed' 
   },
 
+  // Refund and Cancellation Tracking
+  refundStatus: {
+    type: String,
+    enum: ['none', 'pending', 'issued'],
+    default: 'none'
+  },
+  cancellationReason: {
+    type: String
+  },
+
   // Handover Accountability
   checkInDetails: {
     odometer: { type: Number },

@@ -1,10 +1,11 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { ActivityIndicator, View, Text } from 'react-native';
 
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 
 // Auth Screens
 import LoginScreen    from './src/screens/auth/LoginScreen';
@@ -18,6 +19,8 @@ import VehicleDetailScreen from './src/screens/vehicle/VehicleDetailScreen';
 // Owner Screens
 import OwnerVehiclesScreen from './src/screens/owner/OwnerVehiclesScreen';
 import OwnerDashboardScreen from './src/screens/owner/OwnerDashboardScreen';
+import OwnerFeedbackScreen from './src/screens/owner/OwnerFeedbackScreen';
+import OwnerAnalyticsScreen from './src/screens/owner/OwnerAnalyticsScreen';
 
 // Admin Screens
 import AdminDashboard           from './src/screens/admin/AdminDashboard';
@@ -26,6 +29,7 @@ import UserManagementScreen     from './src/screens/admin/UserManagementScreen';
 import FleetManagementScreen    from './src/screens/admin/FleetManagementScreen';
 import AllBookingsScreen        from './src/screens/admin/AllBookingsScreen';
 import FeedbackModerationScreen from './src/screens/admin/FeedbackModerationScreen';
+import AdminReportScreen        from './src/screens/admin/AdminReportScreen';
 
 // Booking Screens
 import BookingScreen from './src/screens/booking/BookingScreen';
@@ -41,16 +45,45 @@ import ProfileScreen from './src/screens/profile/ProfileScreen';
 const Stack = createNativeStackNavigator();
 const Tab   = createBottomTabNavigator();
 
-const PRIMARY = '#1E3A8A';
-
 const TabIcon = ({ emoji, focused }) => (
-  <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.5 }}>{emoji}</Text>
+  <Text style={{ 
+    fontSize: 22, 
+    opacity: focused ? 1 : 0.5,
+    transform: [{ scale: focused ? 1.1 : 1 }] 
+  }}>
+    {emoji}
+  </Text>
 );
+
+const baseTabOptions = (colors) => ({
+  headerShown: false,
+  tabBarActiveTintColor: colors.primary,
+  tabBarInactiveTintColor: colors.textMuted,
+  tabBarStyle: {
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    elevation: 20,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    height: 65,
+    paddingBottom: 8,
+    paddingTop: 8,
+  },
+  tabBarLabelStyle: {
+    fontFamily: 'sans-serif', // Using systemic sans-serif as pseudo-Inter
+    fontWeight: '600',
+    fontSize: 11,
+  }
+});
 
 // ── Customer Tabs ──────────────────────────────────────────────────
 function CustomerTabs() {
+  const { colors } = useTheme();
   return (
-    <Tab.Navigator screenOptions={{ headerShown: false, tabBarActiveTintColor: PRIMARY, tabBarStyle: { paddingBottom: 6, height: 60 } }}>
+    <Tab.Navigator screenOptions={baseTabOptions(colors)}>
       <Tab.Screen name="Home"       component={HomeScreen}       options={{ tabBarIcon: (p) => <TabIcon emoji="🚗" {...p} />, title: 'Browse Cars'  }} />
       <Tab.Screen name="MyBookings" component={MyBookingsScreen} options={{ tabBarIcon: (p) => <TabIcon emoji="📋" {...p} />, title: 'My Bookings'  }} />
       <Tab.Screen name="Profile"    component={ProfileScreen}    options={{ tabBarIcon: (p) => <TabIcon emoji="👤" {...p} />, title: 'My Profile'   }} />
@@ -60,11 +93,13 @@ function CustomerTabs() {
 
 // ── Car Owner Tabs ─────────────────────────────────────────────────
 function CarOwnerTabs() {
+  const { colors } = useTheme();
   return (
-    <Tab.Navigator screenOptions={{ headerShown: false, tabBarActiveTintColor: PRIMARY, tabBarStyle: { paddingBottom: 6, height: 60 } }}>
+    <Tab.Navigator screenOptions={baseTabOptions(colors)}>
       <Tab.Screen name="Dashboard"  component={OwnerDashboardScreen} options={{ tabBarIcon: (p) => <TabIcon emoji="📈" {...p} />, title: 'Dashboard' }} />
       <Tab.Screen name="MyFleet"    component={OwnerVehiclesScreen}  options={{ tabBarIcon: (p) => <TabIcon emoji="🚗" {...p} />, title: 'My Fleet' }} />
-      <Tab.Screen name="AddVehicle" component={AddVehicleScreen}     options={{ tabBarIcon: (p) => <TabIcon emoji="➕" {...p} />, title: 'Add Vehicle' }} />
+      <Tab.Screen name="Reviews"    component={OwnerFeedbackScreen}  options={{ tabBarIcon: (p) => <TabIcon emoji="⭐" {...p} />, title: 'Reviews' }} />
+      <Tab.Screen name="Reports"    component={OwnerAnalyticsScreen} options={{ tabBarIcon: (p) => <TabIcon emoji="📊" {...p} />, title: 'Reports' }} />
       <Tab.Screen name="Profile"    component={ProfileScreen}        options={{ tabBarIcon: (p) => <TabIcon emoji="👤" {...p} />, title: 'Profile'  }} />
     </Tab.Navigator>
   );
@@ -72,10 +107,12 @@ function CarOwnerTabs() {
 
 // ── Admin Tabs ─────────────────────────────────────────────────────
 function AdminTabs() {
+  const { colors } = useTheme();
   return (
-    <Tab.Navigator screenOptions={{ headerShown: false, tabBarActiveTintColor: PRIMARY, tabBarStyle: { paddingBottom: 6, height: 60 } }}>
+    <Tab.Navigator screenOptions={baseTabOptions(colors)}>
       <Tab.Screen name="Analytics"      component={AnalyticsScreen} options={{ tabBarIcon: (p) => <TabIcon emoji="📊" {...p} />, title: 'Dashboard'  }} />
       <Tab.Screen name="AdminDashboard" component={AdminDashboard}  options={{ tabBarIcon: (p) => <TabIcon emoji="🛡️" {...p} />, title: 'Approvals'  }} />
+      <Tab.Screen name="UserManagement" component={UserManagementScreen} options={{ tabBarIcon: (p) => <TabIcon emoji="👥" {...p} />, title: 'Users' }} />
       <Tab.Screen name="Profile"        component={ProfileScreen}   options={{ tabBarIcon: (p) => <TabIcon emoji="👤" {...p} />, title: 'My Profile' }} />
     </Tab.Navigator>
   );
@@ -84,11 +121,12 @@ function AdminTabs() {
 // ── Root Navigator ─────────────────────────────────────────────────
 function RootNavigator() {
   const { user, loading } = useAuth();
+  const { colors, isDark } = useTheme();
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={PRIMARY} />
+      <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -99,8 +137,17 @@ function RootNavigator() {
     ? CarOwnerTabs
     : CustomerTabs;
 
+  const stackHeaderOptions = {
+    headerShown: true,
+    headerTintColor: colors.textPrimary,
+    headerStyle: { backgroundColor: colors.surface },
+    headerTitleStyle: { fontWeight: '700', fontSize: 18 },
+    headerShadowVisible: false,
+    headerBackTitleVisible: false,
+  };
+
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
       {!user ? (
         <>
           <Stack.Screen name="Login"    component={LoginScreen} />
@@ -109,16 +156,21 @@ function RootNavigator() {
       ) : (
         <>
           <Stack.Screen name="Main"    component={MainTabs} />
-          <Stack.Screen name="VehicleDetail" component={VehicleDetailScreen} options={{ headerShown: true, title: 'Vehicle Details', headerTintColor: PRIMARY }} />
-          <Stack.Screen name="Booking" component={BookingScreen} options={{ headerShown: true, title: 'Book Vehicle', headerTintColor: PRIMARY }} />
-          <Stack.Screen name="Payment" component={PaymentScreen} options={{ headerShown: true, title: 'Payment',      headerTintColor: PRIMARY }} />
-          <Stack.Screen name="KYCUpload" component={KYCUploadScreen} options={{ headerShown: true, title: 'Identity Verification', headerTintColor: PRIMARY }} />
+          <Stack.Screen name="VehicleDetail" component={VehicleDetailScreen} options={{ ...stackHeaderOptions, title: 'Vehicle Summary' }} />
+          <Stack.Screen name="Booking" component={BookingScreen} options={{ ...stackHeaderOptions, title: 'Book Vehicle' }} />
+          <Stack.Screen name="Payment" component={PaymentScreen} options={{ ...stackHeaderOptions, title: 'Secure Checkout' }} />
+          <Stack.Screen name="KYCUpload" component={KYCUploadScreen} options={{ ...stackHeaderOptions, title: 'Identity Check' }} />
+          <Stack.Screen name="AddVehicle" component={AddVehicleScreen} options={{ ...stackHeaderOptions, title: 'Add to Fleet' }} />
           
-          {/* Admin Management Screens */}
-          <Stack.Screen name="UserManagement" component={UserManagementScreen} options={{ headerShown: true, title: 'Manage Users', headerTintColor: PRIMARY }} />
-          <Stack.Screen name="FleetManagement" component={FleetManagementScreen} options={{ headerShown: true, title: 'Manage Fleet', headerTintColor: PRIMARY }} />
-          <Stack.Screen name="AllBookings" component={AllBookingsScreen} options={{ headerShown: true, title: 'Platform Bookings', headerTintColor: PRIMARY }} />
-          <Stack.Screen name="FeedbackModeration" component={FeedbackModerationScreen} options={{ headerShown: true, title: 'Review Feedback', headerTintColor: PRIMARY }} />
+          {/* Admin Management Screens (Restricted Route) */}
+          {user?.role === 'Admin' && (
+            <>
+              <Stack.Screen name="FleetManagement" component={FleetManagementScreen} options={{ ...stackHeaderOptions, title: 'Manage Fleet' }} />
+              <Stack.Screen name="AllBookings" component={AllBookingsScreen} options={{ ...stackHeaderOptions, title: 'Platform Bookings' }} />
+              <Stack.Screen name="FeedbackModeration" component={FeedbackModerationScreen} options={{ ...stackHeaderOptions, title: 'Review Feedback' }} />
+              <Stack.Screen name="AdminReport" component={AdminReportScreen} options={{ ...stackHeaderOptions, title: 'Platform Report' }} />
+            </>
+          )}
         </>
       )}
     </Stack.Navigator>
@@ -127,10 +179,12 @@ function RootNavigator() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <NavigationContainer>
-        <RootNavigator />
-      </NavigationContainer>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <NavigationContainer>
+          <RootNavigator />
+        </NavigationContainer>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

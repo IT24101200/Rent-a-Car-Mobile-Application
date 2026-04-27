@@ -2,15 +2,19 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, Image,
   ActivityIndicator, Alert, SafeAreaView, RefreshControl,
-  Modal, TextInput, KeyboardAvoidingView, Platform, ScrollView
+  Modal, TextInput, KeyboardAvoidingView, Platform, ScrollView, StatusBar
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../../context/AuthContext';
 import api, { BASE_URL } from '../../api/api';
+import { SIZES, SHADOWS } from '../../theme/theme';
+import { useTheme } from '../../context/ThemeContext';
 
-const PRIMARY = '#1E3A8A';
 
 export default function OwnerVehiclesScreen({ navigation }) {
+  const { colors } = useTheme();
+  const C = colors;
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
   const { user } = useAuth();
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -189,7 +193,10 @@ export default function OwnerVehiclesScreen({ navigation }) {
       });
       setVehicles(prev => prev.map(v => v._id === editingVehicle._id ? res.data : v));
       closeEditModal();
-      Alert.alert('Success', 'Vehicle updated. Pending admin approval.');
+      const msg = res.data.validationStatus === 'pending'
+        ? 'Vehicle updated. Critical fields changed \u2014 pending admin re-approval.'
+        : 'Vehicle updated successfully!';
+      Alert.alert('Success', msg);
     } catch (err) {
       Alert.alert('Error', err.response?.data?.message || 'Failed to update vehicle.');
     } finally {
@@ -199,17 +206,18 @@ export default function OwnerVehiclesScreen({ navigation }) {
 
   const getStatusBadge = (status) => {
     switch(status) {
-      case 'accepted': return <Text style={[styles.badgeText, { color: '#16A34A' }]}>✅ Accepted</Text>;
-      case 'rejected': return <Text style={[styles.badgeText, { color: '#DC2626' }]}>❌ Rejected</Text>;
-      default:         return <Text style={[styles.badgeText, { color: '#D97706' }]}>⏳ Pending Review</Text>;
+      case 'accepted': return <Text style={[styles.badgeText, { color: C.success }]}>✅ Accepted</Text>;
+      case 'rejected': return <Text style={[styles.badgeText, { color: C.error }]}>❌ Rejected</Text>;
+      default:         return <Text style={[styles.badgeText, { color: C.warning }]}>⏳ Pending</Text>;
     }
   };
 
-  if (loading) return <SafeAreaView style={styles.center}><ActivityIndicator size="large" color={PRIMARY} /></SafeAreaView>;
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={C.primary} /></View>;
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <View style={styles.header}>
+    <View style={styles.screen}>
+      <StatusBar barStyle="light-content" backgroundColor={C.headerGradientStart} />
+      <View style={styles.greenHeader}>
         <Text style={styles.title}>My Fleet</Text>
         <Text style={styles.subtitle}>Manage your vehicles</Text>
       </View>
@@ -218,7 +226,7 @@ export default function OwnerVehiclesScreen({ navigation }) {
         keyExtractor={item => item._id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchMyVehicles(true)} />}
         contentContainerStyle={styles.list}
-        ListEmptyComponent={<Text style={{textAlign: 'center', color: '#666'}}>You haven't added any vehicles yet.</Text>}
+        ListEmptyComponent={<Text style={{textAlign: 'center', color: C.textMuted, padding: 20}}>You haven't added any vehicles yet.</Text>}
         renderItem={({ item }) => (
           <View style={styles.card}>
             {/* Vehicle Image */}
@@ -237,36 +245,36 @@ export default function OwnerVehiclesScreen({ navigation }) {
 
             <View style={styles.cardBody}>
               <View style={styles.cardHeader}>
-                <Text style={styles.makeModel}>{item.makeAndModel}</Text>
-                <View style={[styles.statusBadge, item.validationStatus === 'accepted' ? { backgroundColor: '#DCFCE7' } : item.validationStatus === 'rejected' ? { backgroundColor: '#FEE2E2' } : { backgroundColor: '#FEF3C7' }]}>
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <Text style={styles.makeModel} numberOfLines={1}>{item.makeAndModel}</Text>
+                </View>
+                <View style={[styles.statusBadge, item.validationStatus === 'accepted' ? { backgroundColor: C.successBg } : item.validationStatus === 'rejected' ? { backgroundColor: C.errorBg } : { backgroundColor: C.warningBg }]}>
                   {getStatusBadge(item.validationStatus)}
                 </View>
               </View>
 
               <Text style={styles.detail}>🔖 {item.licensePlate} • {item.year || 'N/A'}</Text>
               <Text style={styles.detail}>{item.type || 'Vehicle'} • {item.transmission || 'N/A'} • {item.fuelType || 'N/A'} • 💺 {item.seats || 'N/A'}</Text>
-              <Text style={[styles.detail, {fontWeight: '800', color: '#059669', fontSize: 16, marginTop: 4}]}>Rs. {item.pricePerDay} / day</Text>
+              <Text style={[styles.detail, {fontWeight: '800', color: C.success, fontSize: 16, marginTop: 4}]}>Rs. {item.pricePerDay} / day</Text>
 
               <View style={styles.actionRow}>
-                {item.validationStatus === 'accepted' ? (
+                {item.validationStatus === 'accepted' && (
                   <TouchableOpacity
                     style={[styles.btn, item.isAvailable ? styles.btnSuspend : styles.btnActivate, actionId === item._id && { opacity: 0.5 }]}
                     onPress={() => toggleAvailability(item)}
                     disabled={actionId === item._id}
                   >
-                    <Text style={styles.btnText}>{item.isAvailable ? 'Hide from Customers' : 'Make Available'}</Text>
+                    <Text style={styles.btnText}>{item.isAvailable ? 'Hide' : 'Show'}</Text>
                   </TouchableOpacity>
-                ) : (
-                  <View style={styles.btnGroupRow}>
-                    <TouchableOpacity
-                      style={[styles.btn, styles.btnEdit, actionId === item._id && { opacity: 0.5 }]}
-                      onPress={() => openEditModal(item)}
-                      disabled={actionId === item._id}
-                    >
-                      <Text style={[styles.btnText, { color: '#334155' }]}>✏️ Edit Details</Text>
-                    </TouchableOpacity>
-                  </View>
                 )}
+
+                <TouchableOpacity
+                  style={[styles.btn, styles.btnEdit, actionId === item._id && { opacity: 0.5 }]}
+                  onPress={() => openEditModal(item)}
+                  disabled={actionId === item._id}
+                >
+                  <Text style={[styles.btnText, { color: C.textPrimary }]}>✏️ Edit</Text>
+                </TouchableOpacity>
                 
                 <TouchableOpacity
                   style={[styles.btn, styles.btnDelete, actionId === item._id && { opacity: 0.5 }]}
@@ -292,11 +300,19 @@ export default function OwnerVehiclesScreen({ navigation }) {
           <ScrollView contentContainerStyle={styles.modalScroll}>
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>✏️ Edit Vehicle</Text>
-              <View style={styles.warningBox}>
-                <Text style={styles.warningText}>
-                  Edits will reset status to <Text style={{fontWeight: '700'}}>Pending</Text> and require Admin approval again.
-                </Text>
-              </View>
+              {editingVehicle?.validationStatus === 'accepted' ? (
+                <View style={styles.warningBox}>
+                  <Text style={styles.warningText}>
+                    ⚠️ Changing vehicle name, plate, photo, or documents will reset approval to <Text style={{fontWeight: '700'}}>Pending</Text>. Price and feature changes apply instantly.
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.warningBox}>
+                  <Text style={styles.warningText}>
+                    Edits will keep status as <Text style={{fontWeight: '700'}}>Pending</Text> and require Admin approval.
+                  </Text>
+                </View>
+              )}
 
               {/* Image Section */}
               <Text style={styles.label}>Vehicle Photo</Text>
@@ -405,7 +421,7 @@ export default function OwnerVehiclesScreen({ navigation }) {
                             ? <Text style={styles.editDocStatus}>✅ New image selected</Text>
                             : existing
                               ? <Text style={styles.editDocStatus}>📎 Uploaded — tap to replace</Text>
-                              : <Text style={[styles.editDocStatus, { color: '#DC2626' }]}>❌ Not uploaded — tap to add</Text>
+                              : <Text style={[styles.editDocStatus, { color: C.error }]}>❌ Not uploaded — tap to add</Text>
                           }
                         </View>
                       </View>
@@ -438,81 +454,86 @@ export default function OwnerVehiclesScreen({ navigation }) {
         </KeyboardAvoidingView>
       </Modal>
 
-    </SafeAreaView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  screen:        { flex: 1, backgroundColor: '#F8FAFC' },
-  header:        { padding: 20, paddingBottom: 10 },
-  title:         { fontSize: 28, fontWeight: '900', color: '#0F172A' },
-  subtitle:      { color: '#64748B', marginTop: 4, fontSize: 16 },
-  center:        { flex: 1, justifyContent: 'center', alignItems: 'center' },
+const getStyles = (C) => StyleSheet.create({
+  screen:        { flex: 1, backgroundColor: C.background },
+
+  // ── Green Header ──
+  greenHeader:   { backgroundColor: C.headerGradientStart, paddingTop: 50, paddingBottom: 24, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, marginBottom: 16 },
+  title:         { fontSize: 26, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
+  subtitle:      { fontSize: 14, color: 'rgba(255,255,255,0.7)', fontWeight: '600', marginTop: 4 },
+  center:        { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.background },
   list:          { padding: 16, paddingBottom: 40 },
-  card:              { backgroundColor: '#fff', borderRadius: 16, marginBottom: 14, elevation: 3, borderWidth: 1, borderColor: '#E2E8F0', overflow: 'hidden' },
+
+  // ── Vehicle Cards ──
+  card:              { backgroundColor: C.surface, borderRadius: SIZES.radius, marginBottom: 16, borderWidth: 1, borderColor: C.border, overflow: 'hidden', ...SHADOWS.card },
   cardImage:         { width: '100%', height: 170 },
-  cardImagePlaceholder: { width: '100%', height: 110, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center' },
-  noImageText:       { fontSize: 12, color: '#94A3B8', fontWeight: '600', marginTop: 6 },
+  cardImagePlaceholder: { width: '100%', height: 110, backgroundColor: C.surfaceHighlight, alignItems: 'center', justifyContent: 'center' },
+  noImageText:       { fontSize: 12, color: C.textMuted, fontWeight: '600', marginTop: 6 },
   cardBody:          { padding: 14 },
   cardHeader:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  makeModel:         { fontSize: 18, fontWeight: '800', color: '#0F172A', flex: 1 },
-  statusBadge:       { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  badgeText:         { fontWeight: '700', fontSize: 12 },
-  detail:            { fontSize: 14, color: '#475569', marginBottom: 5, fontWeight: '500' },
-  actionRow:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 12, marginTop: 10 },
-  infoText:          { color: '#94A3B8', fontSize: 12, fontStyle: 'italic', flex: 1 },
+  makeModel:         { fontSize: 18, fontWeight: '800', color: C.textPrimary, flex: 1 },
+  statusBadge:       { paddingHorizontal: 10, paddingVertical: 4, borderRadius: SIZES.radius },
+  badgeText:         { fontWeight: '700', fontSize: 12, color: C.textPrimary },
+  detail:            { fontSize: 14, color: C.textSecondary, marginBottom: 5, fontWeight: '500' },
+  actionRow:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: C.border, paddingTop: 12, marginTop: 10 },
+  infoText:          { color: C.textMuted, fontSize: 12, fontStyle: 'italic', flex: 1 },
   btnGroupRow:   { flex: 1, marginRight: 10 },
-  btn:           { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 },
-  btnEdit:       { backgroundColor: '#F1F5F9', alignItems: 'center', borderWidth: 1, borderColor: '#CBD5E1' },
-  btnActivate:   { backgroundColor: '#16A34A', flex: 1, marginRight: 10, alignItems: 'center' },
-  btnSuspend:    { backgroundColor: '#D97706', flex: 1, marginRight: 10, alignItems: 'center' },
-  btnDelete:     { backgroundColor: '#EF4444' },
-  btnText:       { color: '#fff', fontWeight: '700', fontSize: 13 },
+  btn:           { paddingHorizontal: 16, paddingVertical: 10, borderRadius: SIZES.radius },
+  btnEdit:       { backgroundColor: C.background, alignItems: 'center', borderWidth: 1, borderColor: C.border },
+  btnActivate:   { backgroundColor: C.success, flex: 1, marginRight: 10, alignItems: 'center' },
+  btnSuspend:    { backgroundColor: C.warning, flex: 1, marginRight: 10, alignItems: 'center' },
+  btnDelete:     { backgroundColor: C.error },
+  btnText:       { color: '#FFFFFF', fontWeight: '700', fontSize: 13 },
   
-  // Chip Styles
-  chip:           { backgroundColor: '#F1F5F9', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, marginRight: 10, borderWidth: 1, borderColor: '#CBD5E1' },
-  chipSelected:   { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  chipText:       { color: '#475569', fontWeight: '600', fontSize: 14 },
-  chipTextSelected:{ color: '#fff' },
+  // ── Chip Styles ──
+  chip:           { backgroundColor: C.surface, paddingHorizontal: 16, paddingVertical: 10, borderRadius: SIZES.radius, marginRight: 10, borderWidth: 1, borderColor: C.border },
+  chipSelected:   { backgroundColor: C.primary, borderColor: C.primary },
+  chipText:       { color: C.textSecondary, fontWeight: '600', fontSize: 14 },
+  chipTextSelected:{ color: '#FFFFFF' },
 
-  // Modal Styles
+  // ── Modal Styles ──
   modalOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 15 },
   modalScroll:   { flexGrow: 1, justifyContent: 'center', paddingVertical: 20 },
-  modalContent:  { backgroundColor: '#fff', borderRadius: 20, padding: 24, elevation: 10 },
-  modalTitle:    { fontSize: 22, fontWeight: '800', color: '#0F172A', marginBottom: 16 },
-  warningBox:    { backgroundColor: '#FFFBEB', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#FEF3C7', marginBottom: 20 },
-  warningText:   { color: '#B45309', fontSize: 14, lineHeight: 20 },
-  label:         { fontSize: 14, fontWeight: '600', color: '#334155', marginBottom: 6, marginTop: 8 },
-  input:         { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10, padding: 10, fontSize: 15, color: '#1E293B', backgroundColor: '#F8FAFC' },
-  // Modal Image Picker
-  imagePickerBox:     { width: '100%', height: 160, borderRadius: 12, overflow: 'hidden', marginBottom: 6, borderWidth: 1.5, borderColor: '#CBD5E1', borderStyle: 'dashed' },
+  modalContent:  { backgroundColor: C.surface, borderRadius: 20, padding: 24, ...SHADOWS.float },
+  modalTitle:    { fontSize: 22, fontWeight: '800', color: C.textPrimary, marginBottom: 16 },
+  warningBox:    { backgroundColor: C.warningBg, padding: 12, borderRadius: SIZES.radius, borderWidth: 1, borderColor: C.warning, marginBottom: 20 },
+  warningText:   { color: C.warning, fontSize: 14, lineHeight: 20 },
+  label:         { fontSize: 14, fontWeight: '600', color: C.textPrimary, marginBottom: 6, marginTop: 8 },
+  input:         { borderWidth: 1, borderColor: C.border, borderRadius: SIZES.radius, padding: 10, fontSize: 15, color: C.textPrimary, backgroundColor: C.background },
+
+  // ── Modal Image Picker ──
+  imagePickerBox:     { width: '100%', height: 160, borderRadius: SIZES.radius, overflow: 'hidden', marginBottom: 6, borderWidth: 1.5, borderColor: C.border, borderStyle: 'dashed' },
   editImagePreview:   { width: '100%', height: '100%' },
-  editImagePlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F1F5F9' },
-  editImagePlaceholderText: { fontSize: 13, color: '#64748B', fontWeight: '600', marginTop: 6 },
+  editImagePlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.background },
+  editImagePlaceholderText: { fontSize: 13, color: C.textMuted, fontWeight: '600', marginTop: 6 },
   changePhotoBtn:     { alignItems: 'center', paddingVertical: 6, marginBottom: 10 },
-  changePhotoText:    { color: PRIMARY, fontWeight: '700', fontSize: 13 },
+  changePhotoText:    { color: C.primary, fontWeight: '700', fontSize: 13 },
 
   modalActions:  { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 20 },
-  modalBtnCancel:{ paddingVertical: 12, paddingHorizontal: 20, borderRadius: 10, marginRight: 12 },
-  modalBtnCancelText: { color: '#64748B', fontWeight: '700', fontSize: 15 },
-  modalBtnSave:  { backgroundColor: PRIMARY, paddingVertical: 12, paddingHorizontal: 24, borderRadius: 10 },
-  modalBtnSaveText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  modalBtnCancel:{ paddingVertical: 12, paddingHorizontal: 20, borderRadius: SIZES.radius, marginRight: 12 },
+  modalBtnCancelText: { color: C.textSecondary, fontWeight: '700', fontSize: 15 },
+  modalBtnSave:  { backgroundColor: C.primary, paddingVertical: 12, paddingHorizontal: 24, borderRadius: SIZES.radius, ...SHADOWS.card },
+  modalBtnSaveText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
 
-  // Document Vault — Edit Modal
-  editDocVault:       { marginTop: 18, backgroundColor: '#F8FAFC', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#E2E8F0' },
-  editDocVaultHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-  editDocVaultTitle:  { fontSize: 15, fontWeight: '800', color: '#0F172A' },
-  editDocVaultSub:    { fontSize: 11, color: '#64748B', fontWeight: '600' },
-  editDocRow:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1.5, borderColor: '#E2E8F0' },
-  editDocRowUploaded: { borderColor: '#86EFAC', backgroundColor: '#F0FDF4' },
+  // ── Document Vault ──
+  editDocVault:       { marginTop: 18, backgroundColor: C.background, borderRadius: SIZES.radius, padding: 14, borderWidth: 1, borderColor: C.border },
+  editDocVaultHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: C.border },
+  editDocVaultTitle:  { fontSize: 15, fontWeight: '800', color: C.textPrimary },
+  editDocVaultSub:    { fontSize: 11, color: C.textMuted, fontWeight: '600' },
+  editDocRow:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: C.surface, borderRadius: SIZES.radius, padding: 12, marginBottom: 10, borderWidth: 1.5, borderColor: C.border },
+  editDocRowUploaded: { borderColor: C.success, backgroundColor: C.successBg },
   editDocLeft:        { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 10 },
   editDocIcon:        { fontSize: 22, marginRight: 10 },
-  editDocLabel:       { fontSize: 13, fontWeight: '800', color: '#0F172A', marginRight: 6 },
-  editDocStatus:      { fontSize: 11, color: '#16A34A', fontWeight: '600', marginTop: 3 },
-  editDocThumb:       { width: 52, height: 52, borderRadius: 8 },
-  editDocThumbEmpty:  { width: 52, height: 52, borderRadius: 8, backgroundColor: '#EEF2FF', borderWidth: 1.5, borderColor: '#C7D2FE', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
-  reqBadge:           { backgroundColor: '#FEE2E2', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  reqBadgeText:       { color: '#DC2626', fontSize: 9, fontWeight: '800' },
-  optBadge:           { backgroundColor: '#F1F5F9', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  optBadgeText:       { color: '#64748B', fontSize: 9, fontWeight: '700' },
+  editDocLabel:       { fontSize: 13, fontWeight: '800', color: C.textPrimary, marginRight: 6 },
+  editDocStatus:      { fontSize: 11, color: C.success, fontWeight: '600', marginTop: 3 },
+  editDocThumb:       { width: 52, height: 52, borderRadius: SIZES.radius },
+  editDocThumbEmpty:  { width: 52, height: 52, borderRadius: SIZES.radius, backgroundColor: C.primaryLight, borderWidth: 1.5, borderColor: C.border, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  reqBadge:           { backgroundColor: C.errorBg, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  reqBadgeText:       { color: C.error, fontSize: 9, fontWeight: '800' },
+  optBadge:           { backgroundColor: C.background, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  optBadgeText:       { color: C.textMuted, fontSize: 9, fontWeight: '700' },
 });

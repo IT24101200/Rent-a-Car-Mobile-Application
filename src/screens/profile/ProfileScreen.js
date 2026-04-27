@@ -2,15 +2,17 @@ import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView,
-  Platform, SafeAreaView,
+  Platform, Switch
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/api';
-
-const PRIMARY = '#1E3A8A';
+import { useTheme } from '../../context/ThemeContext';
+import { SIZES, SHADOWS } from '../../theme/theme';
 
 export default function ProfileScreen({ navigation }) {
   const { user, login, logout } = useAuth();
+  const { colors, isDark, themeMode, changeThemeMode } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
 
   const [name,        setName]        = useState(user?.name     || '');
   const [email,       setEmail]       = useState(user?.email    || '');
@@ -20,6 +22,8 @@ export default function ProfileScreen({ navigation }) {
   const [errors,      setErrors]      = useState({});
   const [saving,      setSaving]      = useState(false);
   const [section,     setSection]     = useState('info'); // 'info' | 'password'
+
+  const [notifications, setNotifications] = useState(true);
 
   const validateInfo = () => {
     const e = {};
@@ -40,7 +44,6 @@ export default function ProfileScreen({ navigation }) {
     return Object.keys(e).length === 0;
   };
 
-  // ── Save profile info (name + email) ────────────────────────────
   const handleSaveInfo = async () => {
     if (!validateInfo()) return;
     setSaving(true);
@@ -50,9 +53,8 @@ export default function ProfileScreen({ navigation }) {
         email: email.trim().toLowerCase(),
       });
       const updated = res.data.user;
-      // Refresh in-memory user state with the new data
       await login(updated, res.data.token || (await require('@react-native-async-storage/async-storage').default.getItem('token')));
-      Alert.alert('✅ Updated', 'Your profile has been updated successfully.');
+      Alert.alert('✅ Profile Updated', 'Your information has been successfully saved.');
     } catch (err) {
       Alert.alert('Error', err.response?.data?.message || 'Failed to update profile.');
     } finally {
@@ -60,7 +62,6 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
-  // ── Change password ──────────────────────────────────────────────
   const handleChangePassword = async () => {
     if (!validatePassword()) return;
     setSaving(true);
@@ -72,7 +73,7 @@ export default function ProfileScreen({ navigation }) {
       setCurrentPass('');
       setNewPass('');
       setConfirmPass('');
-      Alert.alert('✅ Password Changed', 'Your password has been updated successfully.');
+      Alert.alert('✅ Password Changed', 'Your security credentials have been updated.');
     } catch (err) {
       Alert.alert('Error', err.response?.data?.message || 'Failed to change password.');
     } finally {
@@ -80,41 +81,45 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
+  const kycStatus = user?.identity?.status || 'unverified';
+  const isVerified = kycStatus === 'verified';
+  const isPending = kycStatus === 'pending';
+  const roleEmoji = user?.role === 'Admin' ? '🛡️' : user?.role === 'Car Owner' ? '🔑' : '👤';
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F0F4FF' }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-
-          {/* ── Avatar header ─────────────────────────────────── */}
-          <View style={styles.avatarSection}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{user?.name?.charAt(0)?.toUpperCase() || '?'}</Text>
+          
+          {/* ── Emerald Green Avatar Header ────────────────────────── */}
+          <View style={styles.greenHeader}>
+            <View style={styles.avatarWrap}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{user?.name?.charAt(0)?.toUpperCase() || '?'}</Text>
+              </View>
             </View>
             <Text style={styles.userName}>{user?.name}</Text>
+            <Text style={styles.userEmail}>{user?.email}</Text>
             <View style={styles.roleBadge}>
-              <Text style={styles.roleText}>
-                {user?.role === 'Admin' ? '🛡️' : user?.role === 'Car Owner' ? '🔑' : '👤'} {user?.role}
-              </Text>
+              <Text style={styles.roleText}>{roleEmoji} {user?.role}</Text>
             </View>
           </View>
 
-          {/* ── KYC Identity Module ────────────────────────────── */}
+          {/* ── KYC Module ─────────────────────────────────────────── */}
           {user?.role === 'Customer' && (
             <TouchableOpacity 
-              style={[styles.kycCard, user?.identity?.status === 'verified' && styles.kycCardVerified]} 
+              style={[styles.kycCard, isVerified && styles.kycVerified]} 
               onPress={() => navigation.navigate('KYCUpload')}
+              activeOpacity={0.8}
             >
-              <View style={styles.kycCardRow}>
-                <View>
-                  <Text style={styles.kycCardTitle}>Identity Verification</Text>
-                  <Text style={styles.kycCardStatus}>
-                    Status:{' '} 
-                    <Text style={{
-                      fontWeight: '800', 
-                      color: user?.identity?.status === 'verified' ? '#16A34A' : user?.identity?.status === 'pending' ? '#D97706' : user?.identity?.status === 'rejected' ? '#DC2626' : '#64748B'
-                    }}>
-                      {!user?.identity?.status || user?.identity?.status === 'unverified' ? 'UNVERIFIED' : user?.identity?.status?.toUpperCase()}
-                    </Text>
+              <View style={styles.kycCardInner}>
+                <View style={styles.kycIconBox}>
+                  <Text style={styles.kycIcon}>{isVerified ? '✅' : isPending ? '⏳' : '🛡️'}</Text>
+                </View>
+                <View style={styles.kycTextCol}>
+                  <Text style={styles.kycTitle}>Identity Verification</Text>
+                  <Text style={[styles.kycStatus, isVerified && {color: COLORS.success}, isPending && {color: COLORS.warning}]}>
+                    {isVerified ? 'Verified' : isPending ? 'Pending Review' : 'Not Verified'}
                   </Text>
                 </View>
                 <Text style={styles.kycArrow}>→</Text>
@@ -122,155 +127,181 @@ export default function ProfileScreen({ navigation }) {
             </TouchableOpacity>
           )}
 
-          {/* ── Tab switcher ──────────────────────────────────── */}
-          <View style={styles.tabRow}>
-            <TouchableOpacity
-              style={[styles.tab, section === 'info'     && styles.tabActive]}
-              onPress={() => { setSection('info'); setErrors({}); }}
-            >
-              <Text style={[styles.tabText, section === 'info'     && styles.tabTextActive]}>Profile Info</Text>
+          {/* ── Tabs ───────────────────────────────────────────────── */}
+          <View style={styles.tabContainer}>
+            <TouchableOpacity style={[styles.tab, section === 'info' && styles.tabActive]} onPress={() => { setSection('info'); setErrors({}); }}>
+              <Text style={[styles.tabText, section === 'info' && styles.tabTextActive]}>Personal Info</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tab, section === 'password' && styles.tabActive]}
-              onPress={() => { setSection('password'); setErrors({}); }}
-            >
-              <Text style={[styles.tabText, section === 'password' && styles.tabTextActive]}>Change Password</Text>
+            <TouchableOpacity style={[styles.tab, section === 'password' && styles.tabActive]} onPress={() => { setSection('password'); setErrors({}); }}>
+              <Text style={[styles.tabText, section === 'password' && styles.tabTextActive]}>Security</Text>
             </TouchableOpacity>
           </View>
 
-          {/* ── Profile Info Section ─────────────────────────── */}
+          {/* ── Info Tab ───────────────────────────────────────────── */}
           {section === 'info' && (
             <View style={styles.card}>
-              <Text style={styles.label}>Full Name</Text>
+              <Text style={styles.label}>FULL NAME</Text>
               <TextInput
                 style={[styles.input, errors.name && styles.inputError]}
                 value={name}
                 onChangeText={setName}
                 placeholder="Your full name"
-                placeholderTextColor="#aaa"
+                placeholderTextColor={colors.textMuted}
               />
               {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
 
-              <Text style={styles.label}>Email Address</Text>
+              <Text style={styles.label}>EMAIL ADDRESS</Text>
               <TextInput
                 style={[styles.input, errors.email && styles.inputError]}
                 value={email}
                 onChangeText={setEmail}
                 placeholder="you@example.com"
-                placeholderTextColor="#aaa"
+                placeholderTextColor={colors.textMuted}
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
               {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
 
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Account Role</Text>
-                <Text style={styles.infoValue}>{user?.role}</Text>
+              <View style={styles.hLine} />
+              
+              <View style={styles.settingRow}>
+                <Text style={styles.settingLabel}>Push Notifications</Text>
+                <Switch 
+                  value={notifications} 
+                  onValueChange={setNotifications} 
+                  trackColor={{ true: colors.primary, false: isDark ? '#334155' : '#CBD5E1' }}
+                />
               </View>
 
-              <TouchableOpacity
-                style={[styles.btn, saving && styles.btnDisabled]}
-                onPress={handleSaveInfo}
-                disabled={saving}
-              >
-                {saving
-                  ? <ActivityIndicator color="#fff" />
-                  : <Text style={styles.btnText}>Save Changes</Text>
-                }
+              <View style={styles.settingRow}>
+                <Text style={styles.settingLabel}>Dark Mode (Global)</Text>
+                <Switch 
+                  value={themeMode === 'dark' || (themeMode === 'system' && isDark)}
+                  onValueChange={(val) => changeThemeMode(val ? 'dark' : 'light')} 
+                  trackColor={{ true: colors.primary, false: isDark ? '#334155' : '#CBD5E1' }}
+                />
+              </View>
+
+              <TouchableOpacity style={[styles.btn, saving && styles.btnDisabled]} onPress={handleSaveInfo} disabled={saving} activeOpacity={0.8}>
+                {saving ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.btnText}>Save Changes</Text>}
               </TouchableOpacity>
             </View>
           )}
 
-          {/* ── Change Password Section ───────────────────────── */}
+          {/* ── Security Tab ───────────────────────────────────────── */}
           {section === 'password' && (
             <View style={styles.card}>
-              <Text style={styles.label}>Current Password</Text>
+              <Text style={styles.label}>CURRENT PASSWORD</Text>
               <TextInput
                 style={[styles.input, errors.currentPass && styles.inputError]}
                 value={currentPass}
                 onChangeText={setCurrentPass}
                 placeholder="Enter current password"
-                placeholderTextColor="#aaa"
+                placeholderTextColor={colors.textMuted}
                 secureTextEntry
               />
               {errors.currentPass && <Text style={styles.errorText}>{errors.currentPass}</Text>}
 
-              <Text style={styles.label}>New Password</Text>
+              <Text style={styles.label}>NEW PASSWORD</Text>
               <TextInput
                 style={[styles.input, errors.newPass && styles.inputError]}
                 value={newPass}
                 onChangeText={setNewPass}
                 placeholder="At least 6 characters"
-                placeholderTextColor="#aaa"
+                placeholderTextColor={colors.textMuted}
                 secureTextEntry
               />
               {errors.newPass && <Text style={styles.errorText}>{errors.newPass}</Text>}
 
-              <Text style={styles.label}>Confirm New Password</Text>
+              <Text style={styles.label}>CONFIRM NEW PASSWORD</Text>
               <TextInput
                 style={[styles.input, errors.confirmPass && styles.inputError]}
                 value={confirmPass}
                 onChangeText={setConfirmPass}
                 placeholder="Re-enter new password"
-                placeholderTextColor="#aaa"
+                placeholderTextColor={colors.textMuted}
                 secureTextEntry
               />
               {errors.confirmPass && <Text style={styles.errorText}>{errors.confirmPass}</Text>}
 
-              <TouchableOpacity
-                style={[styles.btn, saving && styles.btnDisabled]}
-                onPress={handleChangePassword}
-                disabled={saving}
-              >
-                {saving
-                  ? <ActivityIndicator color="#fff" />
-                  : <Text style={styles.btnText}>Update Password</Text>
-                }
+              <TouchableOpacity style={[styles.btn, saving && styles.btnDisabled]} onPress={handleChangePassword} disabled={saving} activeOpacity={0.8}>
+                {saving ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.btnText}>Update Password</Text>}
               </TouchableOpacity>
             </View>
           )}
 
-          {/* ── Logout ────────────────────────────────────────── */}
-          <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
-            <Text style={styles.logoutText}>🚪  Logout</Text>
-          </TouchableOpacity>
+          {/* ── Dangerous Actions ──────────────────────────────────── */}
+          <View style={styles.dangerZone}>
+            <TouchableOpacity style={styles.logoutBtn} onPress={logout} activeOpacity={0.8}>
+              <Text style={styles.logoutText}>Log Out</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.deleteBtn} activeOpacity={0.8}>
+              <Text style={styles.deleteText}>Delete Account</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.versionText}>DriveEase version 1.0.0 by Stitch</Text>
 
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container:       { padding: 20, paddingBottom: 50 },
-  avatarSection:   { alignItems: 'center', marginBottom: 24, marginTop: 10 },
-  avatar:          { width: 90, height: 90, borderRadius: 45, backgroundColor: PRIMARY, justifyContent: 'center', alignItems: 'center', elevation: 6 },
-  avatarText:      { fontSize: 40, color: '#fff', fontWeight: '800' },
-  userName:        { fontSize: 22, fontWeight: '800', color: '#1a1a1a', marginTop: 12 },
-  roleBadge:       { backgroundColor: '#EEF2FF', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, marginTop: 8 },
-  roleText:        { color: PRIMARY, fontWeight: '600', fontSize: 13 },
-  tabRow:          { flexDirection: 'row', backgroundColor: '#E2E8F0', borderRadius: 14, padding: 4, marginBottom: 16 },
-  tab:             { flex: 1, padding: 10, borderRadius: 10, alignItems: 'center' },
-  tabActive:       { backgroundColor: '#fff', elevation: 3 },
-  tabText:         { color: '#888', fontWeight: '600', fontSize: 14 },
-  tabTextActive:   { color: PRIMARY, fontWeight: '700' },
-  card:            { backgroundColor: '#fff', borderRadius: 18, padding: 22, elevation: 4, marginBottom: 16 },
-  label:           { fontSize: 13, fontWeight: '600', color: '#333', marginTop: 14, marginBottom: 6 },
-  input:           { borderWidth: 1.5, borderColor: '#E0E0E0', borderRadius: 12, padding: 14, fontSize: 15, color: '#111', backgroundColor: '#FAFAFA' },
-  inputError:      { borderColor: '#EF4444' },
-  errorText:       { color: '#EF4444', fontSize: 12, marginTop: 4 },
-  infoRow:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#F0F0F0' },
-  infoLabel:       { color: '#777', fontSize: 14 },
-  infoValue:       { color: PRIMARY, fontWeight: '700', fontSize: 14 },
-  btn:             { backgroundColor: PRIMARY, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 22 },
-  btnDisabled:     { opacity: 0.7 },
-  btnText:         { color: '#fff', fontWeight: '700', fontSize: 16 },
-  logoutBtn:       { backgroundColor: '#FEE2E2', borderRadius: 14, padding: 16, alignItems: 'center' },
-  logoutText:      { color: '#DC2626', fontWeight: '700', fontSize: 16 },
-  kycCard:         { backgroundColor: '#fff', borderRadius: 16, padding: 18, elevation: 3, marginBottom: 20, borderWidth: 1, borderColor: '#E2E8F0' },
-  kycCardVerified: { borderColor: '#BBF7D0', backgroundColor: '#F0FDF4' },
-  kycCardRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  kycCardTitle:    { fontSize: 16, fontWeight: '700', color: '#1E293B', marginBottom: 4 },
-  kycCardStatus:   { fontSize: 13, color: '#64748B', fontWeight: '500' },
-  kycArrow:        { fontSize: 24, color: '#CBD5E1' },
+const getStyles = (C) => StyleSheet.create({
+  container:      { paddingBottom: 60 },
+  
+  // ── Green Avatar Header ──
+  greenHeader:    { backgroundColor: C.headerGradientStart, paddingTop: 60, paddingBottom: 30, alignItems: 'center', borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
+  avatarWrap:     { padding: 4, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.15)' },
+  avatar:         { width: 90, height: 90, borderRadius: 45, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  avatarText:     { fontSize: 38, color: '#FFFFFF', fontWeight: '800' },
+  userName:       { fontSize: 22, fontWeight: '800', color: '#FFFFFF', marginTop: 14, letterSpacing: -0.5 },
+  userEmail:      { fontSize: 14, color: 'rgba(255,255,255,0.7)', marginTop: 4, marginBottom: 12 },
+  
+  roleBadge:      { backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 16, paddingVertical: 6, borderRadius: SIZES.radiusPill },
+  roleText:       { color: '#FFFFFF', fontWeight: '700', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 },
+  
+  // ── KYC Card ──
+  kycCard:        { backgroundColor: C.surface, borderRadius: SIZES.radius, padding: 16, marginHorizontal: 20, marginTop: 20, marginBottom: 16, borderWidth: 1, borderColor: C.border, ...SHADOWS.card },
+  kycVerified:    { borderColor: C.success },
+  kycCardInner:   { flexDirection: 'row', alignItems: 'center' },
+  kycIconBox:     { width: 44, height: 44, borderRadius: 22, backgroundColor: C.iconCircleBg, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
+  kycIcon:        { fontSize: 20 },
+  kycTextCol:     { flex: 1 },
+  kycTitle:       { fontSize: 15, fontWeight: '700', color: C.textPrimary, marginBottom: 4 },
+  kycStatus:      { fontSize: 13, fontWeight: '600', color: C.textMuted },
+  kycArrow:       { fontSize: 24, color: C.textMuted },
+  
+  // ── Tabs & Form ──
+  tabContainer:   { flexDirection: 'row', backgroundColor: C.surfaceHighlight, borderRadius: SIZES.radius, padding: 4, marginHorizontal: 20, marginBottom: 20, borderColor: C.border, borderWidth: 1 },
+  tab:            { flex: 1, paddingVertical: 10, borderRadius: SIZES.radius, alignItems: 'center' },
+  tabActive:      { backgroundColor: C.surface, ...SHADOWS.card },
+  tabText:        { color: C.textSecondary, fontWeight: '600', fontSize: 14 },
+  tabTextActive:  { color: C.textPrimary, fontWeight: '800' },
+  
+  card:           { backgroundColor: C.surface, borderRadius: SIZES.radius, padding: 24, marginHorizontal: 20, marginBottom: 24, borderWidth: 1, borderColor: C.border, ...SHADOWS.card },
+  label:          { fontSize: 11, fontWeight: '700', color: C.textSecondary, marginBottom: 8, letterSpacing: 0.5, marginTop: 12 },
+  input:          { backgroundColor: C.background, borderWidth: 1, borderColor: C.border, borderRadius: SIZES.radius, height: SIZES.inputHeight, paddingHorizontal: 16, fontSize: 15, color: C.textPrimary },
+  inputError:     { borderColor: C.error },
+  errorText:      { color: C.error, fontSize: 12, marginTop: 6, marginLeft: 4, fontWeight: '600' },
+  
+  hLine:          { height: 1, backgroundColor: C.border, marginVertical: 24 },
+  settingRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  settingLabel:   { fontSize: 15, fontWeight: '600', color: C.textPrimary },
+  
+  btn:            { backgroundColor: C.primary, borderRadius: SIZES.radius, height: SIZES.inputHeight, justifyContent: 'center', alignItems: 'center', marginTop: 28, ...SHADOWS.float },
+  btnDisabled:    { opacity: 0.7 },
+  btnText:        { color: '#FFFFFF', fontWeight: '700', fontSize: 16 },
+  
+  dangerZone:     { marginTop: 16, marginHorizontal: 20 },
+  logoutBtn:      { backgroundColor: C.surface, borderRadius: SIZES.radius, borderWidth: 1, borderColor: C.border, height: SIZES.inputHeight, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  logoutText:     { color: C.textPrimary, fontWeight: '700', fontSize: 16 },
+  
+  deleteBtn:      { height: SIZES.inputHeight, justifyContent: 'center', alignItems: 'center' },
+  deleteText:     { color: C.error, fontWeight: '600', fontSize: 15 },
+  
+  versionText:    { textAlign: 'center', color: C.textMuted, fontSize: 12, marginTop: 32, fontWeight: '500' }
 });
+

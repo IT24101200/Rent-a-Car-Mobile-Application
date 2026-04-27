@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, Image,
-  ActivityIndicator, Alert, SafeAreaView, RefreshControl,
+  ActivityIndicator, Alert, RefreshControl,
   Modal, Dimensions, StatusBar, ScrollView
 } from 'react-native';
 import api, { BASE_URL } from '../../api/api';
+import { useTheme } from '../../context/ThemeContext';
+import { SIZES, SHADOWS } from '../../theme/theme';
 
-const PRIMARY  = '#1E3A8A';
 const { width: W, height: H } = Dimensions.get('window');
 
 const DOC_META = [
@@ -37,7 +38,7 @@ function ImageViewer({ images, startIndex, onClose }) {
           <View style={vs.counter}>
             <Text style={vs.counterText}>{current + 1} / {images.length}</Text>
           </View>
-          <TouchableOpacity style={vs.closeBtn} onPress={onClose}>
+          <TouchableOpacity style={vs.closeBtn} onPress={onClose} activeOpacity={0.8}>
             <Text style={vs.closeText}>✕</Text>
           </TouchableOpacity>
         </View>
@@ -90,6 +91,9 @@ function ImageViewer({ images, startIndex, onClose }) {
 
 // ── Main AdminDashboard ───────────────────────────────────────────────────────
 export default function AdminDashboard() {
+  const { colors, isDark } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
   const [vehicles,   setVehicles]   = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -162,15 +166,16 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.center}>
-        <ActivityIndicator size="large" color={PRIMARY} />
-        <Text style={styles.loadingText}>Loading pending vehicles...</Text>
-      </SafeAreaView>
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>Loading pending approvals...</Text>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <View style={styles.screen}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.headerGradientStart} />
       {viewerOpen && (
         <ImageViewer
           images={viewerImages}
@@ -182,10 +187,11 @@ export default function AdminDashboard() {
       <FlatList
         data={vehicles}
         keyExtractor={(item) => item._id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchPending(true)} colors={[PRIMARY]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchPending(true)} colors={[colors.primary]} tintColor={colors.primary} />}
         ListHeaderComponent={
-          <View style={styles.header}>
-            <Text style={styles.title}>🛡️ Admin Approvals</Text>
+          <View style={styles.greenHeader}>
+            <Text style={styles.headerIcon}>🛡️</Text>
+            <Text style={styles.title}>Admin Approvals</Text>
             <Text style={styles.sub}>{vehicles.length} vehicle{vehicles.length !== 1 ? 's' : ''} awaiting review</Text>
           </View>
         }
@@ -193,7 +199,7 @@ export default function AdminDashboard() {
           <View style={styles.emptyBox}>
             <Text style={styles.emptyEmoji}>🎉</Text>
             <Text style={styles.emptyTitle}>All Clear!</Text>
-            <Text style={styles.emptySub}>No vehicles pending approval.</Text>
+            <Text style={styles.emptySub}>No vehicles pending approval at the moment.</Text>
           </View>
         }
         renderItem={({ item }) => {
@@ -218,8 +224,8 @@ export default function AdminDashboard() {
                 </TouchableOpacity>
               ) : (
                 <View style={styles.cardImagePlaceholder}>
-                  <Text style={{ fontSize: 30 }}>🚗</Text>
-                  <Text style={{ color: '#94A3B8', fontSize: 12, marginTop: 4 }}>No photo uploaded</Text>
+                  <Text style={{ fontSize: 40 }}>🚗</Text>
+                  <Text style={{ color: colors.textMuted, fontSize: 13, marginTop: 8, fontWeight: '600' }}>No photo uploaded</Text>
                 </View>
               )}
 
@@ -227,12 +233,12 @@ export default function AdminDashboard() {
               <View style={styles.cardBody}>
                 <View style={styles.cardHeader}>
                   <Text style={styles.carName}>{item.makeAndModel}</Text>
-                  <View style={styles.pendingBadge}><Text style={styles.pendingText}>⏳ Pending</Text></View>
+                  <View style={styles.pendingBadge}><Text style={styles.pendingText}>⏳ PENDING</Text></View>
                 </View>
                 <Text style={styles.detail}>🔖 {item.licensePlate} • {item.year || 'N/A'}</Text>
                 <Text style={styles.detail}>{item.type || 'Vehicle'} • {item.transmission || 'N/A'} • {item.fuelType || 'N/A'} • 💺 {item.seats || 'N/A'}</Text>
                 {item.features ? <Text style={[styles.detail, {fontStyle: 'italic', fontSize: 12}]}>{item.features}</Text> : null}
-                <Text style={[styles.detail, {fontWeight: '800', color: '#059669', fontSize: 15, marginTop: 4}]}>💰 Rs. {item.pricePerDay}/day</Text>
+                <Text style={styles.priceRow}>💰 Rs. {item.pricePerDay} <Text style={{color: colors.textSecondary, fontSize: 12}}>/ day</Text></Text>
 
                 {/* ── Document Vault ─────────────────────────── */}
                 {item.documents && item.documents.length > 0 ? (
@@ -243,6 +249,7 @@ export default function AdminDashboard() {
                         <TouchableOpacity
                           style={styles.viewAllBtn}
                           onPress={() => openViewer(gallery, 1)}
+                          activeOpacity={0.7}
                         >
                           <Text style={styles.viewAllText}>View All →</Text>
                         </TouchableOpacity>
@@ -273,7 +280,7 @@ export default function AdminDashboard() {
                                 <Text style={{ fontSize: 18 }}>❌</Text>
                               </View>
                             )}
-                            <Text style={[styles.docCellLabel, !doc && { color: '#DC2626' }]}>{label}</Text>
+                            <Text style={[styles.docCellLabel, !doc && { color: colors.error }]}>{label}</Text>
                           </View>
                         );
                       })}
@@ -288,21 +295,23 @@ export default function AdminDashboard() {
                 {/* ── Action Buttons ──────────────────────────── */}
                 <View style={styles.actionRow}>
                   <TouchableOpacity
-                    style={[styles.acceptBtn, actionId === item._id && styles.btnDisabled]}
-                    onPress={() => confirmAction(item, 'accepted')}
-                    disabled={actionId === item._id}
-                  >
-                    {actionId === item._id
-                      ? <ActivityIndicator color="#fff" size="small" />
-                      : <Text style={styles.acceptBtnText}>✅ Accept</Text>
-                    }
-                  </TouchableOpacity>
-                  <TouchableOpacity
                     style={[styles.rejectBtn, actionId === item._id && styles.btnDisabled]}
                     onPress={() => confirmAction(item, 'rejected')}
                     disabled={actionId === item._id}
+                    activeOpacity={0.8}
                   >
-                    <Text style={styles.rejectBtnText}>❌ Reject</Text>
+                    <Text style={styles.rejectBtnText}>Reject</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.acceptBtn, actionId === item._id && styles.btnDisabled]}
+                    onPress={() => confirmAction(item, 'accepted')}
+                    disabled={actionId === item._id}
+                    activeOpacity={0.8}
+                  >
+                    {actionId === item._id
+                      ? <ActivityIndicator color={colors.surface} size="small" />
+                      : <Text style={styles.acceptBtnText}>Accept Vehicle</Text>
+                    }
                   </TouchableOpacity>
                 </View>
               </View>
@@ -311,71 +320,75 @@ export default function AdminDashboard() {
         }}
         contentContainerStyle={styles.list}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  screen:          { flex: 1, backgroundColor: '#F8FAFC' },
-  list:            { padding: 16, paddingBottom: 40 },
-  center:          { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header:          { marginBottom: 20 },
-  title:           { fontSize: 26, fontWeight: '900', color: PRIMARY },
-  sub:             { color: '#64748B', marginTop: 4, fontWeight: '500' },
-  loadingText:     { marginTop: 12, color: '#64748B' },
+const getStyles = (C) => StyleSheet.create({
+  screen:          { flex: 1, backgroundColor: C.background },
+  list:            { paddingHorizontal: 20, paddingBottom: 60 },
+  center:          { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.background },
+  
+  greenHeader: { backgroundColor: C.headerGradientStart, paddingTop: 50, paddingBottom: 24, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, marginBottom: 20 , marginHorizontal: -20, marginTop: -20},
+  headerIcon:      { fontSize: 28, marginBottom: 8 },
+  title:           { fontSize: 28, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
+  sub:             { color: 'rgba(255,255,255,0.7)', marginTop: 4, fontWeight: '500', fontSize: 14 },
+  loadingText:     { marginTop: 16, color: C.textSecondary, fontWeight: '600', fontSize: 15 },
 
-  card:                 { backgroundColor: '#fff', borderRadius: 18, marginBottom: 18, elevation: 4, overflow: 'hidden', borderWidth: 1, borderColor: '#F1F5F9' },
-  cardImage:            { width: '100%', height: 200 },
-  cardImagePlaceholder: { width: '100%', height: 120, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
-  zoomHint:             { position: 'absolute', bottom: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4 },
-  zoomHintText:         { color: '#fff', fontSize: 11, fontWeight: '700' },
-  cardBody:        { padding: 16 },
-  cardHeader:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  carName:         { fontSize: 18, fontWeight: '900', color: '#0F172A', flex: 1 },
-  pendingBadge:    { backgroundColor: '#FEF3C7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginLeft: 8 },
-  pendingText:     { color: '#92400E', fontSize: 12, fontWeight: '800' },
-  detail:          { color: '#64748B', fontSize: 14, marginBottom: 4, fontWeight: '500' },
-  actionRow:       { flexDirection: 'row', gap: 10, marginTop: 16 },
-  acceptBtn:       { flex: 1, backgroundColor: '#16A34A', borderRadius: 12, padding: 14, alignItems: 'center' },
-  acceptBtnText:   { color: '#fff', fontWeight: '800', fontSize: 15 },
-  rejectBtn:       { flex: 1, backgroundColor: '#FEE2E2', borderRadius: 12, padding: 14, alignItems: 'center' },
-  rejectBtnText:   { color: '#DC2626', fontWeight: '800', fontSize: 15 },
+  card:                 { backgroundColor: C.surface, borderRadius: SIZES.radius, marginBottom: 20, overflow: 'hidden', borderWidth: 1, borderColor: C.border },
+  cardImage:            { width: '100%', height: 220 },
+  cardImagePlaceholder: { width: '100%', height: 160, backgroundColor: C.surfaceHighlight, alignItems: 'center', justifyContent: 'center' },
+  zoomHint:             { position: 'absolute', bottom: 12, right: 12, backgroundColor: 'rgba(6, 95, 70, 0.8)', borderRadius: SIZES.radius, paddingHorizontal: 12, paddingVertical: 6 },
+  zoomHintText:         { color: '#FFFFFF', fontSize: 11, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' },
+  cardBody:        { padding: 20 },
+  cardHeader:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  carName:         { fontSize: 18, fontWeight: '800', color: C.textPrimary, flex: 1, letterSpacing: -0.2 },
+  pendingBadge:    { backgroundColor: C.warningBg, paddingHorizontal: 10, paddingVertical: 5, borderRadius: SIZES.radius, marginLeft: 8 },
+  pendingText:     { color: C.warning, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  detail:          { color: C.textSecondary, fontSize: 13, marginBottom: 4, fontWeight: '600' },
+  priceRow:        { fontWeight: '900', color: C.success, fontSize: 18, marginTop: 8, letterSpacing: -0.2 },
+  
+  actionRow:       { flexDirection: 'row', gap: 12, marginTop: 20 },
+  acceptBtn:       { flex: 2, backgroundColor: C.primary, borderRadius: SIZES.radius, paddingVertical: 14, alignItems: 'center', ...SHADOWS.float },
+  acceptBtnText:   { color: '#FFFFFF', fontWeight: '800', fontSize: 15 },
+  rejectBtn:       { flex: 1, backgroundColor: C.surfaceHighlight, borderRadius: SIZES.radius, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: C.border },
+  rejectBtnText:   { color: C.error, fontWeight: '800', fontSize: 15 },
   btnDisabled:     { opacity: 0.6 },
-  emptyBox:        { alignItems: 'center', marginTop: 60 },
-  emptyEmoji:      { fontSize: 60 },
-  emptyTitle:      { fontSize: 22, fontWeight: '700', color: '#15803D', marginTop: 12 },
-  emptySub:        { color: '#777', marginTop: 6 },
+  
+  emptyBox:        { alignItems: 'center', marginTop: 80, paddingHorizontal: 20 },
+  emptyEmoji:      { fontSize: 70, marginBottom: 16 },
+  emptyTitle:      { fontSize: 24, fontWeight: '900', color: C.success, letterSpacing: -0.5 },
+  emptySub:        { color: C.textSecondary, marginTop: 8, textAlign: 'center', fontWeight: '500', fontSize: 15, lineHeight: 22 },
 
   // Document vault
-  docVault:        { marginTop: 16, backgroundColor: '#F8FAFC', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#E2E8F0' },
-  docVaultHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  docVaultTitle:   { fontSize: 13, fontWeight: '800', color: '#334155' },
-  viewAllBtn:      { backgroundColor: '#EEF2FF', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10 },
-  viewAllText:     { color: PRIMARY, fontSize: 12, fontWeight: '800' },
+  docVault:        { marginTop: 20, backgroundColor: C.surfaceHighlight, borderRadius: SIZES.radius, padding: 16, borderWidth: 1, borderColor: C.border },
+  docVaultHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  docVaultTitle:   { fontSize: 14, fontWeight: '800', color: C.textPrimary, letterSpacing: -0.2 },
+  viewAllBtn:      { backgroundColor: C.surface, paddingHorizontal: 12, paddingVertical: 6, borderRadius: SIZES.radius, borderWidth: 1, borderColor: C.border },
+  viewAllText:     { color: C.primary, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   docGrid:         { flexDirection: 'row', justifyContent: 'space-between' },
   docCell:         { alignItems: 'center', width: '23%' },
-  docThumb:        { width: '100%', aspectRatio: 1, borderRadius: 10, marginBottom: 4 },
-  docZoomOverlay:  { position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 8, padding: 3 },
-  docThumbMissing: { width: '100%', aspectRatio: 1, borderRadius: 10, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  docCellLabel:    { fontSize: 9, color: '#334155', fontWeight: '700', textAlign: 'center' },
-  noDocsBanner:    { marginTop: 12, backgroundColor: '#FEF3C7', borderRadius: 10, padding: 10, alignItems: 'center' },
-  noDocsText:      { color: '#92400E', fontWeight: '700', fontSize: 13 },
+  docThumb:        { width: '100%', aspectRatio: 1, borderRadius: SIZES.radius, marginBottom: 6, ...SHADOWS.light },
+  docZoomOverlay:  { position: 'absolute', top: 6, right: 6, backgroundColor: 'rgba(6, 95, 70, 0.6)', borderRadius: 20, padding: 4 },
+  docThumbMissing: { width: '100%', aspectRatio: 1, borderRadius: SIZES.radius, backgroundColor: C.errorBg, alignItems: 'center', justifyContent: 'center', marginBottom: 6, borderWidth: 1, borderColor: C.error, borderStyle: 'dashed' },
+  docCellLabel:    { fontSize: 9, color: C.textSecondary, fontWeight: '800', textAlign: 'center', textTransform: 'uppercase' },
+  noDocsBanner:    { marginTop: 16, backgroundColor: C.warningBg, borderRadius: SIZES.radius, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: C.warning },
+  noDocsText:      { color: C.warning, fontWeight: '800', fontSize: 13 },
 });
 
-// ── Image Viewer Styles ───────────────────────────────────────────────────────
 const vs = StyleSheet.create({
-  overlay:        { flex: 1, backgroundColor: '#000' },
-  topBar:         { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 50, paddingBottom: 14, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 10 },
-  docLabel:       { flex: 1, color: '#fff', fontWeight: '800', fontSize: 15 },
-  counter:        { backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginRight: 12 },
-  counterText:    { color: '#fff', fontSize: 12, fontWeight: '700' },
-  closeBtn:       { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-  closeText:      { color: '#fff', fontSize: 18, fontWeight: '800' },
+  overlay:        { flex: 1, backgroundColor: '#0F172A' }, // Darker, premium slate
+  topBar:         { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 60, paddingBottom: 16, backgroundColor: 'rgba(15, 23, 42, 0.85)', zIndex: 10 },
+  docLabel:       { flex: 1, color: '#FFFFFF', fontWeight: '800', fontSize: 16, letterSpacing: -0.2 },
+  counter:        { backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: SIZES.radiusPill, marginRight: 16 },
+  counterText:    { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
+  closeBtn:       { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  closeText:      { color: '#FFFFFF', fontSize: 18, fontWeight: '900' },
   imageContainer: { width: W, height: H, alignItems: 'center', justifyContent: 'center' },
   fullImage:      { width: W, height: H * 0.75 },
-  dots:           { flexDirection: 'row', justifyContent: 'center', paddingVertical: 16, gap: 8 },
-  dot:            { width: 7, height: 7, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.3)' },
-  dotActive:      { backgroundColor: '#fff', width: 20 },
-  hint:           { textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: 12, paddingBottom: 20, fontWeight: '600' },
+  dots:           { flexDirection: 'row', justifyContent: 'center', paddingVertical: 24, gap: 10 },
+  dot:            { width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.2)' },
+  dotActive:      { backgroundColor: '#FFFFFF', width: 24 },
+  hint:           { textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontSize: 13, paddingBottom: 30, fontWeight: '600', letterSpacing: 0.5 },
 });

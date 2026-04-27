@@ -1,18 +1,22 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, Alert, ActivityIndicator, SafeAreaView, TextInput
+  ScrollView, Alert, ActivityIndicator, TextInput, StatusBar
 } from 'react-native';
 import api from '../../api/api';
 import { useAuth } from '../../context/AuthContext';
-
-const PRIMARY = '#1E3A8A';
+import { useTheme } from '../../context/ThemeContext';
+import { SIZES, SHADOWS } from '../../theme/theme';
 
 export default function PaymentScreen({ route, navigation }) {
   const { vehicle, startDate, endDate, days, total } = route.params;
   const { user } = useAuth();
+  const { colors, isDark } = useTheme();
+  
   const [loading,  setLoading]  = useState(false);
   const [paid,     setPaid]     = useState(false);
+  
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
   
   // Payment States
   const [payMethod,  setPayMethod]  = useState('card');
@@ -72,35 +76,48 @@ export default function PaymentScreen({ route, navigation }) {
   // ── Success Screen ────────────────────────────────────────────────
   if (paid) {
     return (
-      <SafeAreaView style={styles.successScreen}>
-        <Text style={styles.successEmoji}>🎉</Text>
-        <Text style={styles.successTitle}>Booking Confirmed!</Text>
-        <Text style={styles.successSub}>Your vehicle has been successfully booked.</Text>
-        <View style={styles.successCard}>
-          <Text style={styles.successDetail}>🚗 {vehicle.makeAndModel}</Text>
-          <Text style={styles.successDetail}>📅 {new Date(startDate).toLocaleDateString()} → {new Date(endDate).toLocaleDateString()}</Text>
-          <Text style={styles.successTotal}>💰 Rs. {total.toLocaleString()} paid</Text>
+      <View style={styles.successScreen}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.success + '15'} />
+        <View style={styles.successCenter}>
+          <Text style={styles.successEmoji}>🎉</Text>
+          <Text style={styles.successTitle}>Booking Confirmed!</Text>
+          <Text style={styles.successSub}>Your vehicle has been successfully booked.</Text>
+          
+          <View style={styles.successCard}>
+            <Text style={styles.successVehicle}>🚗 {vehicle.makeAndModel}</Text>
+            <View style={styles.successDivider} />
+            <Text style={styles.successDetail}>📅 {new Date(startDate).toLocaleDateString()}  →  {new Date(endDate).toLocaleDateString()}</Text>
+            <Text style={styles.successTotal}>Amount: Rs. {total.toLocaleString()}</Text>
+          </View>
+          
+          <TouchableOpacity style={styles.homeBtn} onPress={() => navigation.navigate('Main', { screen: 'MyBookings' })} activeOpacity={0.8}>
+            <Text style={styles.homeBtnText}>View My Bookings</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.homeBtn} onPress={() => navigation.navigate('Main', { screen: 'MyBookings' })}>
-          <Text style={styles.homeBtnText}>View My Bookings</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F0F4FF' }}>
-      <ScrollView contentContainerStyle={styles.container}>
+    <View style={styles.screen}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.headerGradientStart} />
+      <View style={styles.greenHeader}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <Text style={styles.backBtnText}>← Back</Text>
+        </TouchableOpacity>
         <Text style={styles.pageTitle}>Checkout</Text>
+        <View style={styles.headerRight} />
+      </View>
 
+      <ScrollView contentContainerStyle={styles.container}>
         {/* Order Summary */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>📋 Order Summary</Text>
-          <Row label="Vehicle"    value={vehicle.makeAndModel} />
-          <Row label="Plate"      value={vehicle.licensePlate} />
-          <Row label="From"       value={new Date(startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} />
-          <Row label="To"         value={new Date(endDate).toLocaleDateString('en-GB',   { day: '2-digit', month: 'short', year: 'numeric' })} />
-          <Row label="Duration"   value={`${days} day${days !== 1 ? 's' : ''}`} />
+          <Row label="Vehicle"    value={vehicle.makeAndModel} styles={styles} />
+          <Row label="Plate"      value={vehicle.licensePlate} styles={styles} />
+          <Row label="From"       value={new Date(startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} styles={styles} />
+          <Row label="To"         value={new Date(endDate).toLocaleDateString('en-GB',   { day: '2-digit', month: 'short', year: 'numeric' })} styles={styles} />
+          <Row label="Duration"   value={`${days} day${days !== 1 ? 's' : ''}`} styles={styles} />
           <View style={styles.totalDivider} />
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total Amount</Text>
@@ -108,17 +125,17 @@ export default function PaymentScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* Payment Method (dummy) */}
+        {/* Payment Method */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>💳 Payment Method</Text>
           <View style={styles.payMethodRow}>
-            <TouchableOpacity style={[styles.payMethod, payMethod === 'card' && styles.payMethodActive]} onPress={() => setPayMethod('card')}>
+            <TouchableOpacity style={[styles.payMethod, payMethod === 'card' && styles.payMethodActive]} onPress={() => setPayMethod('card')} activeOpacity={0.8}>
               <Text style={styles.payMethodIcon}>💳</Text>
-              <Text style={styles.payMethodText}>Pay Now</Text>
+              <Text style={[styles.payMethodText, payMethod === 'card' && styles.payMethodTextActive]}>Pay Now</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.payMethod, payMethod === 'cash' && styles.payMethodActive]} onPress={() => setPayMethod('cash')}>
+            <TouchableOpacity style={[styles.payMethod, payMethod === 'cash' && styles.payMethodActive]} onPress={() => setPayMethod('cash')} activeOpacity={0.8}>
               <Text style={styles.payMethodIcon}>💵</Text>
-              <Text style={styles.payMethodText}>Cash on Pickup</Text>
+              <Text style={[styles.payMethodText, payMethod === 'cash' && styles.payMethodTextActive]}>Cash on Pickup</Text>
             </TouchableOpacity>
           </View>
 
@@ -127,20 +144,20 @@ export default function PaymentScreen({ route, navigation }) {
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Card Number</Text>
               <View style={[styles.pseudoInput, errors.card && styles.inputErrorBorder]}>
-                <Text>💳</Text>
-                <TextInput style={styles.textInput} placeholder="1234 5678 9101 1121" keyboardType="numeric" maxLength={19} value={cardNumber} onChangeText={setCardNumber} />
+                <Text style={{opacity: 0.5}}>💳</Text>
+                <TextInput style={styles.textInput} placeholder="1234 5678 9101 1121" placeholderTextColor={colors.textMuted} keyboardType="numeric" maxLength={19} value={cardNumber} onChangeText={setCardNumber} />
               </View>
               {errors.card && <Text style={styles.errorText}>{errors.card}</Text>}
               
-              <View style={{flexDirection: 'row', gap: 12, marginTop: 12}}>
+              <View style={{flexDirection: 'row', gap: 16, marginTop: 16}}>
                 <View style={{flex: 1}}>
                   <Text style={styles.inputLabel}>Expiry Date</Text>
-                  <TextInput style={[styles.pseudoInput, errors.expiry && styles.inputErrorBorder]} placeholder="MM/YY" keyboardType="numeric" maxLength={5} value={expiryDate} onChangeText={setExpiryDate} />
+                  <TextInput style={[styles.pseudoInput, errors.expiry && styles.inputErrorBorder]} placeholderTextColor={colors.textMuted} placeholder="MM/YY" keyboardType="numeric" maxLength={5} value={expiryDate} onChangeText={setExpiryDate} />
                   {errors.expiry && <Text style={styles.errorText}>{errors.expiry}</Text>}
                 </View>
                 <View style={{flex: 1}}>
                   <Text style={styles.inputLabel}>CVV</Text>
-                  <TextInput style={[styles.pseudoInput, errors.cvv && styles.inputErrorBorder]} placeholder="123" keyboardType="numeric" maxLength={3} secureTextEntry={true} value={cvv} onChangeText={setCvv} />
+                  <TextInput style={[styles.pseudoInput, errors.cvv && styles.inputErrorBorder]} placeholder="123" placeholderTextColor={colors.textMuted} keyboardType="numeric" maxLength={3} secureTextEntry={true} value={cvv} onChangeText={setCvv} />
                   {errors.cvv && <Text style={styles.errorText}>{errors.cvv}</Text>}
                 </View>
               </View>
@@ -153,68 +170,83 @@ export default function PaymentScreen({ route, navigation }) {
           style={[styles.payBtn, loading && styles.btnDisabled]}
           onPress={handlePayment}
           disabled={loading}
+          activeOpacity={0.8}
         >
           {loading
-            ? <ActivityIndicator color="#fff" />
+            ? <ActivityIndicator color={colors.surface} />
             : <>
-                <Text style={styles.payBtnText}>Confirm & Pay</Text>
+                <Text style={styles.payBtnText}>Confirm Booking {payMethod === 'card' && '& Pay'}</Text>
                 <Text style={styles.payBtnAmount}>Rs. {total.toLocaleString()}</Text>
               </>
           }
         </TouchableOpacity>
 
-        <Text style={styles.disclaimer}>🔒 Secure & encrypted payment</Text>
+        <Text style={styles.disclaimer}>🔒 Secure & encrypted checkout via DrivEase</Text>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
-const Row = ({ label, value }) => (
+const Row = ({ label, value, styles }) => (
   <View style={styles.row}>
     <Text style={styles.rowLabel}>{label}</Text>
     <Text style={styles.rowValue}>{value}</Text>
   </View>
 );
 
-const styles = StyleSheet.create({
-  container:       { padding: 20, paddingBottom: 40 },
-  pageTitle:       { fontSize: 26, fontWeight: '800', color: PRIMARY, marginBottom: 20 },
-  card:            { backgroundColor: '#fff', borderRadius: 18, padding: 20, marginBottom: 14, elevation: 4 },
-  sectionTitle:    { fontSize: 16, fontWeight: '700', marginBottom: 14, color: '#1a1a1a' },
-  row:             { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  rowLabel:        { color: '#777', fontSize: 15 },
-  rowValue:        { color: '#1a1a1a', fontWeight: '600', fontSize: 15, textAlign: 'right', flex: 1, marginLeft: 8 },
-  totalDivider:    { height: 1, backgroundColor: '#EEEEEE', marginVertical: 12 },
-  totalRow:        { flexDirection: 'row', justifyContent: 'space-between' },
-  totalLabel:      { fontSize: 17, fontWeight: '800', color: '#1a1a1a' },
-  totalValue:      { fontSize: 17, fontWeight: '800', color: PRIMARY },
-  payMethodRow:    { flexDirection: 'row', gap: 12, marginBottom: 16 },
-  payMethod:       { flex: 1, borderWidth: 1.5, borderColor: '#E0E0E0', borderRadius: 12, padding: 12, alignItems: 'center' },
-  payMethodActive: { borderColor: PRIMARY, backgroundColor: '#EEF2FF' },
-  payMethodIcon:   { fontSize: 22 },
-  payMethodText:   { fontSize: 13, fontWeight: '600', color: '#555', marginTop: 4 },
-  dummyCard:       { backgroundColor: PRIMARY, borderRadius: 14, padding: 20 },
-  dummyCardNumber: { color: '#fff', fontSize: 20, fontWeight: '700', letterSpacing: 4 },
-  dummyCardName:   { color: '#C7D2FE', marginTop: 12, fontWeight: '500' },
-  payBtn:          { backgroundColor: '#16A34A', borderRadius: 16, padding: 18, alignItems: 'center', elevation: 4 },
+const getStyles = (C) => StyleSheet.create({
+  screen:          { flex: 1, backgroundColor: C.background },
+  greenHeader:     { backgroundColor: C.headerGradientStart, paddingTop: 50, paddingBottom: 24, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, marginBottom: 16 },
+  backBtn:         { padding: 8, marginLeft: -8 },
+  backBtnText:     { fontSize: 16, color: C.primary, fontWeight: '700' },
+  pageTitle:       { fontSize: 20, fontWeight: '800', color: C.textPrimary },
+  headerRight:     { width: 60 },
+  
+  container:       { padding: 20, paddingBottom: 60 },
+  card:            { backgroundColor: C.surface, borderRadius: SIZES.radius, padding: 24, marginBottom: 20, borderWidth: 1, borderColor: C.border, ...SHADOWS.card },
+  sectionTitle:    { fontSize: 16, fontWeight: '800', marginBottom: 20, color: C.textPrimary, letterSpacing: -0.2 },
+  
+  row:             { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
+  rowLabel:        { color: C.textSecondary, fontSize: 14, fontWeight: '500' },
+  rowValue:        { color: C.textPrimary, fontWeight: '700', fontSize: 15, textAlign: 'right', flex: 1, marginLeft: 8 },
+  totalDivider:    { height: 1, backgroundColor: C.border, marginVertical: 16 },
+  totalRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  totalLabel:      { fontSize: 16, fontWeight: '800', color: C.textPrimary },
+  totalValue:      { fontSize: 22, fontWeight: '900', color: C.primary },
+  
+  payMethodRow:    { flexDirection: 'row', gap: 16, marginBottom: 8 },
+  payMethod:       { flex: 1, borderWidth: 1, borderColor: C.border, borderRadius: SIZES.radius, padding: 16, alignItems: 'center', backgroundColor: C.surface },
+  payMethodActive: { borderColor: C.primary, backgroundColor: C.surfaceHighlight, borderWidth: 2 },
+  payMethodIcon:   { fontSize: 32, marginBottom: 8 },
+  payMethodText:   { fontSize: 13, fontWeight: '700', color: C.textSecondary },
+  payMethodTextActive: { color: C.primary },
+  
+  inputContainer:  { marginTop: 24 },
+  inputLabel:      { fontSize: 12, fontWeight: '800', color: C.textSecondary, textTransform: 'uppercase', marginBottom: 8 },
+  pseudoInput:     { flexDirection: 'row', alignItems: 'center', backgroundColor: C.background, borderWidth: 1, borderColor: C.border, paddingHorizontal: 16, height: SIZES.inputHeight, borderRadius: SIZES.radius, gap: 12 },
+  textInput:       { flex: 1, color: C.textPrimary, fontWeight: '700', fontSize: 16 },
+  inputErrorBorder:{ borderColor: C.error, borderWidth: 1.5 },
+  errorText:       { color: C.error, fontSize: 12, marginTop: 6, fontWeight: '600' },
+  
+  payBtn:          { backgroundColor: C.primary, borderRadius: SIZES.radius, paddingVertical: 18, alignItems: 'center', marginTop: 12, ...SHADOWS.float },
   btnDisabled:     { opacity: 0.7 },
-  payBtnText:      { color: '#fff', fontWeight: '700', fontSize: 17 },
-  payBtnAmount:    { color: '#BBF7D0', fontSize: 14, marginTop: 2 },
-  disclaimer:      { color: '#9CA3AF', textAlign: 'center', marginTop: 14, fontSize: 13 },
+  payBtnText:      { color: '#FFFFFF', fontWeight: '800', fontSize: 16, letterSpacing: 0.5 },
+  payBtnAmount:    { color: 'rgba(255,255,255,0.8)', fontSize: 14, marginTop: 4, fontWeight: '600' },
+  disclaimer:      { color: C.textMuted, textAlign: 'center', marginTop: 20, fontSize: 12, fontWeight: '600' },
+  
   // Success
-  successScreen:   { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, backgroundColor: '#F0FFF4' },
-  successEmoji:    { fontSize: 72 },
-  successTitle:    { fontSize: 28, fontWeight: '800', color: '#15803D', marginTop: 16 },
-  successSub:      { color: '#555', marginTop: 8, fontSize: 15, textAlign: 'center' },
-  successCard:     { backgroundColor: '#fff', borderRadius: 16, padding: 20, width: '100%', marginTop: 24, elevation: 4 },
-  successDetail:   { fontSize: 15, color: '#333', marginBottom: 8 },
-  successTotal:    { fontSize: 16, fontWeight: '800', color: '#15803D', marginTop: 4 },
-  homeBtn:         { backgroundColor: PRIMARY, borderRadius: 14, paddingHorizontal: 36, paddingVertical: 14, marginTop: 28 },
-  homeBtnText:     { color: '#fff', fontWeight: '700', fontSize: 16 },
-  inputContainer:  { marginTop: 16, backgroundColor: '#F9FAFB', padding: 16, borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB' },
-  inputLabel:      { fontSize: 13, fontWeight: '600', color: '#6B7280', marginBottom: 6 },
-  pseudoInput:     { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderWidth: 1, borderColor: '#D1D5DB', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10,  gap: 8 },
-  textInput:       { flex: 1, color: '#111827', fontWeight: '600', fontSize: 15 },
-  inputErrorBorder:{ borderColor: '#EF4444', borderWidth: 1.5 },
-  errorText:       { color: '#EF4444', fontSize: 12, marginTop: 4, fontWeight: '500' }
+  successScreen:   { flex: 1, backgroundColor: C.success + '15', justifyContent: 'center' },
+  successCenter:   { alignItems: 'center', padding: 32 },
+  successEmoji:    { fontSize: 80, marginBottom: 16 },
+  successTitle:    { fontSize: 32, fontWeight: '900', color: C.success, textAlign: 'center', letterSpacing: -0.5 },
+  successSub:      { color: C.textSecondary, marginTop: 8, fontSize: 16, textAlign: 'center', fontWeight: '500', marginBottom: 32 },
+  
+  successCard:     { backgroundColor: C.surface, borderRadius: SIZES.radius, padding: 24, width: '100%', ...SHADOWS.float, borderWidth: 1, borderColor: C.success + '80' },
+  successVehicle:  { fontSize: 18, color: C.textPrimary, fontWeight: '800', textAlign: 'center' },
+  successDivider:  { height: 1, backgroundColor: C.border, marginVertical: 16 },
+  successDetail:   { fontSize: 14, color: C.textSecondary, fontWeight: '600', textAlign: 'center', marginBottom: 16 },
+  successTotal:    { fontSize: 18, fontWeight: '900', color: C.success, textAlign: 'center' },
+  
+  homeBtn:         { backgroundColor: C.success, borderRadius: SIZES.radius, paddingHorizontal: 32, paddingVertical: 16, marginTop: 40, ...SHADOWS.float },
+  homeBtnText:     { color: '#FFFFFF', fontWeight: '800', fontSize: 16, letterSpacing: 0.5 }
 });
