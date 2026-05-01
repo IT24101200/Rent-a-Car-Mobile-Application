@@ -47,7 +47,7 @@ function ImageViewer({ images, startIndex, onClose }) {
 }
 
 // ── Main AdminDashboard ──
-export default function AdminDashboard() {
+export default function AdminDashboard({ navigation }) {
   const { colors, isDark } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -146,9 +146,16 @@ export default function AdminDashboard() {
         ListHeaderComponent={
           <View>
             <View style={styles.greenHeader}>
-              <Text style={styles.headerIcon}>🛡️</Text>
-              <Text style={styles.title}>Vehicle Validation</Text>
-              <Text style={styles.sub}>{stats.pending} awaiting review</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <View>
+                  <Text style={styles.headerIcon}>🛡️</Text>
+                  <Text style={styles.title}>Vehicle Validation</Text>
+                  <Text style={styles.sub}>{stats.pending} awaiting review</Text>
+                </View>
+                <TouchableOpacity style={styles.avatarBtn} onPress={() => navigation.navigate('Notifications')}>
+                  <Text style={styles.avatarText}>🔔</Text>
+                </TouchableOpacity>
+              </View>
               <View style={styles.statsRow}>
                 <View style={styles.statBox}><Text style={{fontSize:22,fontWeight:'900',color:'#FBBF24'}}>{stats.pending}</Text><Text style={styles.statLbl}>Pending</Text></View>
                 <View style={styles.statBox}><Text style={{fontSize:22,fontWeight:'900',color:'#4ADE80'}}>{stats.accepted}</Text><Text style={styles.statLbl}>Accepted</Text></View>
@@ -291,6 +298,8 @@ const getStyles = (C) => StyleSheet.create({
   headerIcon: { fontSize:28, marginBottom:8 },
   title: { fontSize:26, fontWeight:'800', color:'#fff', letterSpacing:-0.5 },
   sub: { color:'rgba(255,255,255,0.7)', marginTop:4, fontWeight:'500', fontSize:14 },
+  avatarBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  avatarText: { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
   statsRow: { flexDirection:'row', marginTop:16, gap:8 },
   statBox: { flex:1, backgroundColor:'rgba(255,255,255,0.15)', borderRadius:14, padding:10, alignItems:'center' },
   statLbl: { fontSize:10, fontWeight:'700', color:'rgba(255,255,255,0.6)', marginTop:4, textTransform:'uppercase', letterSpacing:0.5 },

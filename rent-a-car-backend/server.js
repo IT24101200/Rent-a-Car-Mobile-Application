@@ -393,6 +393,18 @@ app.post('/api/users/kyc', authMiddleware, uploadKycFiles, async (req, res) => {
     user.identity.status = 'pending';
     await user.save();
     
+    // Notify all admins of the new KYC submission
+    const admins = await User.find({ role: 'Admin' });
+    for (const admin of admins) {
+      await sendNotification(
+        admin._id,
+        'New KYC Submission',
+        `${user.name} has submitted their Identity documents for verification.`,
+        'info',
+        'UserManagement'
+      );
+    }
+    
     res.json({ message: 'KYC documents submitted.', identity: user.identity });
   } catch (err) {
     res.status(500).json({ message: 'Error uploading KYC documents.', error: err.message });

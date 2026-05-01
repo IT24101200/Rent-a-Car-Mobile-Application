@@ -82,7 +82,7 @@ export default function MyBookingsScreen({ navigation }) {
   useEffect(() => { fetchBookings(); }, [fetchBookings]);
 
   // ── Data Partitioning ─────────────────────────────────────────────
-  const upcomingBookingsArr = bookings.filter(b => b.status === 'confirmed');
+  const upcomingBookingsArr = bookings.filter(b => b.status === 'confirmed' || b.status === 'pending');
   const activeBookingsArr = bookings.filter(b => b.status === 'active' || b.status === 'returning');
   const historyBookingsArr = bookings.filter(b => b.status === 'completed' || b.status === 'cancelled');
 
@@ -355,7 +355,7 @@ export default function MyBookingsScreen({ navigation }) {
               )}
 
               {/* Action Buttons for UPCOMING */}
-              {activeTab === 'upcoming' && item.status === 'confirmed' && (
+              {activeTab === 'upcoming' && (item.status === 'confirmed' || item.status === 'pending') && (
                 <View style={styles.actionGrid}>
                   {canCheckIn ? (
                     <TouchableOpacity style={styles.primaryActionBtn} onPress={() => openAccountability(item, 'checkin')}>

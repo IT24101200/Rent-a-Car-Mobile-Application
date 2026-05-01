@@ -9,7 +9,7 @@ const { width: W, height: H } = Dimensions.get('window');
 import { useTheme } from '../../context/ThemeContext';
 import { SIZES, SHADOWS } from '../../theme/theme';
 
-export default function UserManagementScreen() {
+export default function UserManagementScreen({ navigation }) {
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => getStyles(colors), [colors]);
 
@@ -192,8 +192,15 @@ export default function UserManagementScreen() {
         ListHeaderComponent={
           <View>
             <View style={styles.greenHeader}>
-              <Text style={styles.title}>User Management</Text>
-              <Text style={styles.subtitle}>{users.length} total accounts</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <View>
+                  <Text style={styles.title}>User Management</Text>
+                  <Text style={styles.subtitle}>{users.length} total accounts</Text>
+                </View>
+                <TouchableOpacity style={styles.avatarBtn} onPress={() => navigation.navigate('Notifications')}>
+                  <Text style={styles.avatarText}>🔔</Text>
+                </TouchableOpacity>
+              </View>
             </View>
             <View style={styles.sectionRow}>
               <TouchableOpacity
@@ -571,6 +578,8 @@ const getStyles = (C) => StyleSheet.create({
   greenHeader: { backgroundColor: C.headerGradientStart, paddingTop: 50, paddingBottom: 24, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, marginBottom: 16 , marginHorizontal: -20, marginTop: -20},
   title: { fontSize: 26, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
   subtitle:      { fontSize: 14, color: 'rgba(255,255,255,0.7)', fontWeight: '600', marginTop: 4 },
+  avatarBtn:      { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  avatarText:     { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
 
   card:          { backgroundColor: C.surface, padding: 20, borderRadius: SIZES.radius, marginBottom: 16, ...SHADOWS.card, borderWidth: 1, borderColor: C.border },
   cardSuspended: { backgroundColor: C.error + '05', borderColor: C.error + '30' },

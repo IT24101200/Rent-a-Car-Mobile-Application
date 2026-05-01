@@ -61,9 +61,9 @@ export const AuthProvider = ({ children }) => {
              await AsyncStorage.setItem('user', JSON.stringify(res.data));
              registerPushToken(savedToken);
           } catch(err) {
-             // If token is expired/invalid, force logout
-             if (err.response?.status === 401) {
-               console.warn('Token expired — clearing session.');
+             // If token is expired/invalid or user no longer exists, force logout
+             if (err.response?.status === 401 || err.response?.status === 404) {
+               console.warn('Session invalid or user deleted — clearing session.');
                await AsyncStorage.removeItem('token');
                await AsyncStorage.removeItem('user');
                setToken(null);
@@ -102,6 +102,9 @@ export const AuthProvider = ({ children }) => {
        await AsyncStorage.setItem('user', JSON.stringify(res.data));
     } catch (e) {
        console.warn('Failed to refresh user:', e.message);
+       if (e.response?.status === 401 || e.response?.status === 404) {
+         logout();
+       }
     }
   };
 

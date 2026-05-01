@@ -21,7 +21,7 @@ const VehicleCard = ({ item, onPress }) => {
     <TouchableOpacity style={styles.card} onPress={() => onPress(item)} activeOpacity={0.9}>
       <View style={styles.cardImageContainer}>
         {item.imageUrl ? (
-          <Image source={{ uri: `${BASE_URL}${item.imageUrl}` }} style={styles.cardImage} resizeMode="cover" />
+          <Image source={{ uri: `${BASE_URL}${item.imageUrl}` }} style={styles.cardImage} resizeMode="contain" />
         ) : (
           <View style={styles.cardImagePlaceholder}>
             <Text style={{ fontSize: 40 }}>🚘</Text>

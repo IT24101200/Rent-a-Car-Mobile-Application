@@ -71,8 +71,15 @@ export default function AnalyticsScreen() {
       <StatusBar barStyle="light-content" backgroundColor={colors.headerGradientStart} />
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.greenHeader}>
-          <Text style={styles.title}>📊 Admin Dashboard</Text>
-          <Text style={styles.subtitle}>Overview & Quick Actions</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <View>
+              <Text style={styles.title}>📊 Admin Dashboard</Text>
+              <Text style={styles.subtitle}>Overview & Quick Actions</Text>
+            </View>
+            <TouchableOpacity style={styles.avatarBtn} onPress={() => nav.navigate('Notifications')}>
+              <Text style={styles.avatarText}>🔔</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {error && (
@@ -134,6 +141,8 @@ const getStyles = (C) => StyleSheet.create({
   center:         { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.background },
   title:           { fontSize: 26, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
   subtitle:       { color: 'rgba(255,255,255,0.7)', marginTop: 4, marginBottom: 10, fontSize: 14, fontWeight: '500' },
+  avatarBtn:      { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  avatarText:     { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
   sectionTitle:   { fontSize: 18, fontWeight: '700', color: C.primary, marginTop: 10, marginBottom: 12 },
   warningBox:     { backgroundColor: C.warning + '15', borderRadius: SIZES.radius, padding: 12, marginBottom: 16 },
   warningText:    { color: C.warning, fontSize: 13, fontWeight: '600' },
