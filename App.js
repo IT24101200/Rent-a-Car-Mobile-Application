@@ -40,6 +40,7 @@ import PaymentScreen from './src/screens/booking/PaymentScreen';
 // Customer Screens
 import MyBookingsScreen from './src/screens/customer/MyBookingsScreen';
 import KYCUploadScreen from './src/screens/customer/KYCUploadScreen';
+import CustomerFeedbackScreen from './src/screens/customer/CustomerFeedbackScreen';
 
 // Profile Screen (shared by all roles)
 import ProfileScreen from './src/screens/profile/ProfileScreen';
@@ -88,6 +89,7 @@ function CustomerTabs() {
     <Tab.Navigator screenOptions={baseTabOptions(colors)}>
       <Tab.Screen name="Home"       component={HomeScreen}       options={{ tabBarIcon: (p) => <TabIcon emoji="🚗" {...p} />, title: 'Browse Cars'  }} />
       <Tab.Screen name="MyBookings" component={MyBookingsScreen} options={{ tabBarIcon: (p) => <TabIcon emoji="📋" {...p} />, title: 'My Bookings'  }} />
+      <Tab.Screen name="MyReviews"  component={CustomerFeedbackScreen} options={{ tabBarIcon: (p) => <TabIcon emoji="⭐" {...p} />, title: 'My Reviews'   }} />
       <Tab.Screen name="Profile"    component={ProfileScreen}    options={{ tabBarIcon: (p) => <TabIcon emoji="👤" {...p} />, title: 'My Profile'   }} />
     </Tab.Navigator>
   );

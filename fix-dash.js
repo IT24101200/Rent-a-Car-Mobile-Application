@@ -1,39 +1,91 @@
 const fs = require('fs');
-let c = fs.readFileSync('src/screens/owner/OwnerDashboardScreen.js', 'utf8');
+let content = fs.readFileSync('src/screens/owner/OwnerDashboardScreen.js', 'utf8');
 
-c = c.replace('const C.primary = C.primary;', '');
-
-if (!c.includes('const C = colors;')) {
-  c = c.replace('const { colors } = useTheme();', 'const { colors } = useTheme();\n  const C = colors;');
-}
-
-const statCardDefRegex = /\/\/ Sleek, minimal Stat Card\s+const StatCard = \(\{ title, value, icon, bgColor, textColor \}\) => \(\s+<View style=\{\[styles\.statCard, \{ backgroundColor: bgColor \}\]\}>\s+<View style=\{styles\.statHeader\}>\s+<Text style=\{\[styles\.statTitle, \{ color: textColor \}\]\}>\{title\}<\/Text>\s+<Text style=\{\[styles\.statIcon, \{ color: textColor \}\]\}>\{icon\}<\/Text>\s+<\/View>\s+<Text style=\{\[styles\.statValue, \{ color: textColor \}\]\}>\{value\}<\/Text>\s+<\/View>\s+\);/;
-
-const statCardDef = `// Sleek, minimal Stat Card
-  const StatCard = ({ title, value, icon, bgColor, textColor }) => (
-    <View style={[styles.statCard, { backgroundColor: bgColor }]}>
-      <View style={styles.statHeader}>
-        <Text style={[styles.statTitle, { color: textColor }]}>{title}</Text>
-        <Text style={[styles.statIcon, { color: textColor }]}>{icon}</Text>
-      </View>
-      <Text style={[styles.statValue, { color: textColor }]}>{value}</Text>
-    </View>
-  );`;
-
-// remove from top
-c = c.replace(statCardDefRegex, '');
-
-// insert into component
-c = c.replace('const styles = React.useMemo(() => getStyles(colors), [colors]);', 'const styles = React.useMemo(() => getStyles(colors), [colors]);\n\n  ' + statCardDef);
-
-c = c.replace(
-  /headerContainer: \{ backgroundColor: C\.surface, paddingBottom: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, elevation: 4, marginBottom: 20, shadowColor: '#000', shadowOffset: \{ width: 0, height: 4 \}, shadowOpacity: 0\.05, shadowRadius: 10 \},/,
-  'greenHeader:     { backgroundColor: C.headerGradientStart, paddingTop: 50, paddingBottom: 24, paddingHorizontal: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, elevation: 4, marginBottom: 20 },'
+// Add detailModal state
+content = content.replace(
+  'const [verifying, setVerifying] = useState(false);',
+  'const [verifying, setVerifying] = useState(false);\n  const [detailModal, setDetailModal] = useState(null);'
 );
-c = c.replace(/color: C\.textPrimary, paddingHorizontal: 20, paddingTop: 20, marginBottom: 16/, 'color: \'#FFFFFF\'');
-c = c.replace(/borderRadius: 20, marginRight: 12, elevation: 6, shadowColor: '#000', shadowOffset: \{ width: 0, height: 4 \}, shadowOpacity: 0\.1, shadowRadius: 8/, 'borderRadius: SIZES.radius + 8, marginRight: 12, elevation: 6, borderWidth: 1, borderColor: C.border');
-c = c.replace(/style=\{styles\.headerContainer\}/g, 'style={styles.greenHeader}');
-c = c.replace(/borderRadius: 20, marginBottom: 16, elevation: 2, borderWidth: 1, borderColor: C\.background/, 'borderRadius: SIZES.radius + 8, marginBottom: 16, elevation: 3, borderWidth: 1, borderColor: C.border');
 
-fs.writeFileSync('src/screens/owner/OwnerDashboardScreen.js', c);
-console.log('Fixed OwnerDashboardScreen.js');
+// Update renderItem to use TouchableOpacity
+content = content.replace(
+  'renderItem={({ item }) => (\n          <View style={styles.card}>',
+  'renderItem={({ item }) => (\n          <TouchableOpacity style={styles.card} activeOpacity={0.9} onPress={() => setDetailModal(item)}>'
+);
+
+// Close TouchableOpacity instead of View
+content = content.replace(
+  '            )}\n          </View>\n        )}\n      />',
+  '            )}\n          </TouchableOpacity>\n        )}\n      />'
+);
+
+// Add the Detail Modal JSX
+const detailModalJSX = `
+      {/* ─── Detail Modal ─────────────────────────────────────── */}
+      {detailModal && (
+        <Modal visible animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalBox, { maxHeight: '85%' }]}>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <Text style={styles.modalTitle}>📋 Trip Details</Text>
+                
+                <Text style={styles.ratingLabel}>Vehicle</Text>
+                <Text style={styles.detailValueText}>{detailModal.vehicle?.makeAndModel || 'Unknown'} {detailModal.vehicle?.licensePlate ? \`(\${detailModal.vehicle.licensePlate})\` : ''}</Text>
+
+                <Text style={styles.ratingLabel}>Renter</Text>
+                <Text style={styles.detailValueText}>{detailModal.user?.name} — {detailModal.user?.email}</Text>
+
+                <Text style={styles.ratingLabel}>Dates</Text>
+                <Text style={styles.detailValueText}>{new Date(detailModal.startDate).toLocaleDateString()} → {new Date(detailModal.endDate).toLocaleDateString()}</Text>
+
+                <Text style={styles.ratingLabel}>Total Payout</Text>
+                <Text style={[styles.detailValueText, { color: C.success, fontWeight: '900', fontSize: 20 }]}>Rs. {(detailModal.totalPrice || 0).toLocaleString()}</Text>
+
+                {detailModal.checkInDetails?.time && (
+                  <>
+                    <Text style={styles.ratingLabel}>Check-In Details</Text>
+                    <Text style={styles.detailValueText}>🕐 {new Date(detailModal.checkInDetails.time).toLocaleString()}</Text>
+                    <Text style={styles.detailValueText}>📟 Odometer: {detailModal.checkInDetails.odometer} km</Text>
+                  </>
+                )}
+
+                {detailModal.checkOutDetails?.time && (
+                  <>
+                    <Text style={styles.ratingLabel}>Check-Out Details</Text>
+                    <Text style={styles.detailValueText}>🕐 {new Date(detailModal.checkOutDetails.time).toLocaleString()}</Text>
+                    <Text style={styles.detailValueText}>📟 Odometer: {detailModal.checkOutDetails.odometer} km</Text>
+                    {detailModal.checkOutDetails.conditionPhoto && (
+                      <View style={{marginTop: 8}}>
+                        <Text style={{fontSize: 12, color: C.textSecondary, marginBottom: 4}}>Condition Photo:</Text>
+                        <Image source={{ uri: \`\${api.defaults.baseURL || 'http://localhost:5000'}\${detailModal.checkOutDetails.conditionPhoto}\` }} style={{width: 150, height: 100, borderRadius: 8, backgroundColor: C.surfaceHighlight}} resizeMode="cover" />
+                      </View>
+                    )}
+                  </>
+                )}
+
+                <Text style={styles.ratingLabel}>Booking ID</Text>
+                <Text style={[styles.detailValueText, { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 12 }]}>{detailModal._id}</Text>
+                <View style={{ height: 20 }} />
+              </ScrollView>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setDetailModal(null)}>
+                <Text style={styles.cancelBtnText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+`;
+
+content = content.replace(
+  '        </Modal>\n      )}\n    </View>',
+  '        </Modal>\n      )}\n' + detailModalJSX + '\n    </View>'
+);
+
+// Make sure TouchableOpacity and ScrollView are imported if not
+if (!content.includes('ScrollView,')) content = content.replace('RefreshControl,', 'RefreshControl, ScrollView,');
+if (!content.includes('Modal,')) content = content.replace('ScrollView,', 'ScrollView, Modal,');
+if (!content.includes('Image,')) content = content.replace('ScrollView,', 'ScrollView, Image,');
+if (!content.includes('Platform,')) content = content.replace('ScrollView,', 'ScrollView, Platform,');
+
+fs.writeFileSync('src/screens/owner/OwnerDashboardScreen.js', content);
+console.log('OwnerDashboardScreen updated.');

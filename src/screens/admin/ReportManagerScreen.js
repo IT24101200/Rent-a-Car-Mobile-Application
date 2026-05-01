@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView, RefreshControl, StatusBar, Dimensions, TouchableOpacity, Modal, TextInput, Alert, Share, Platform } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, ScrollView, RefreshControl, StatusBar, Dimensions, TouchableOpacity, Modal, TextInput, Alert, Share, Platform, Image, Linking } from 'react-native';
 import { BarChart } from 'react-native-chart-kit';
-import api from '../../api/api';
+import * as ImagePicker from 'expo-image-picker';
+import api, { API_URL } from '../../api/api';
 import { useTheme } from '../../context/ThemeContext';
 import { SIZES, SHADOWS } from '../../theme/theme';
 
@@ -60,6 +61,36 @@ export default function ReportManagerScreen(){
   const doDelete=id=>Alert.alert('Delete','Remove this saved report?',[{text:'Cancel',style:'cancel'},{text:'Delete',style:'destructive',onPress:async()=>{
     setActionId(id);try{await api.delete(`/api/admin/reports/${id}`);setSaved(p=>p.filter(s=>s._id!==id));if(viewItem?._id===id)setViewItem(null);}
     catch{Alert.alert('Error','Failed.');}finally{setActionId(null);}}}]);
+
+  const doUploadAttachment = async (reportId) => {
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+    if (result.canceled) return;
+    setActionId('upload');
+    try {
+      const uri = result.assets[0].uri;
+      const ext = uri.split('.').pop().toLowerCase();
+      const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`;
+      const formData = new FormData();
+      formData.append('attachment', { uri, name: `attachment_${Date.now()}.${ext}`, type: mime });
+      const r = await api.post(`/api/admin/reports/${reportId}/upload-attachment`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setSaved(p => p.map(s => s._id === reportId ? r.data.report : s));
+      if (viewItem?._id === reportId) setViewItem(r.data.report);
+      Alert.alert('Success', 'Attachment uploaded.');
+    } catch { Alert.alert('Error', 'Failed to upload attachment.'); }
+    finally { setActionId(null); }
+  };
+
+  const doRemoveAttachment = async (reportId, idx) => {
+    Alert.alert('Remove', 'Delete this attachment?', [{text:'Cancel',style:'cancel'},{text:'Remove',style:'destructive',onPress:async()=>{
+      setActionId('rm-att');
+      try {
+        const r = await api.delete(`/api/admin/reports/${reportId}/attachments/${idx}`);
+        setSaved(p => p.map(s => s._id === reportId ? r.data.report : s));
+        if (viewItem?._id === reportId) setViewItem(r.data.report);
+      } catch { Alert.alert('Error', 'Failed.'); }
+      finally { setActionId(null); }
+    }}]);
+  };
 
   const doExport=(item)=>{
     const s=item.snapshot||{};const sb=s.statusBreakdown||{};
@@ -131,6 +162,7 @@ export default function ReportManagerScreen(){
           <Text style={S.dlL}>Report Title *</Text><TextInput style={S.mIn} placeholder="e.g. April Revenue Summary" placeholderTextColor={colors.textMuted} value={cTitle} onChangeText={setCTitle}/>
           <Text style={S.dlL}>Report Type</Text><View style={{flexDirection:'row',gap:8,marginTop:8,flexWrap:'wrap'}}>{TYPES.map(t=>(<TouchableOpacity key={t} style={[S.tBtn,cType===t&&S.tBtnA,{paddingVertical:10}]} onPress={()=>setCType(t)}><Text style={[S.tTxt,cType===t&&S.tTxtA]}>{TYPE_L[t]}</Text></TouchableOpacity>))}</View>
           <Text style={S.dlL}>Notes (optional)</Text><TextInput style={[S.mIn,{minHeight:70,textAlignVertical:'top'}]} placeholder="Add context..." placeholderTextColor={colors.textMuted} value={cNotes} onChangeText={setCNotes} multiline/>
+          <Text style={S.mSub}>Tip: You can attach files after creating the report.</Text>
           <TouchableOpacity style={[S.saveBtn,creating&&{opacity:0.5}]} onPress={doCreate} disabled={creating}>{creating?<ActivityIndicator size="small" color="#fff"/>:<Text style={S.saveTxt}>Generate Report</Text>}</TouchableOpacity>
         </ScrollView><TouchableOpacity style={S.mClose} onPress={()=>setCreateOpen(false)}><Text style={S.mCloseTxt}>Cancel</Text></TouchableOpacity></View></View>
       </Modal>
@@ -159,6 +191,28 @@ export default function ReportManagerScreen(){
               <TouchableOpacity style={[S.aBtn,{flex:1,alignItems:'center'}]} onPress={()=>doExport(viewItem)}><Text style={S.aBTxt}>📤 Export</Text></TouchableOpacity>
               <TouchableOpacity style={[S.aBtn,{flex:1,alignItems:'center'}]} onPress={()=>{setEditOpen(true);setETitle(viewItem.title);setENotes(viewItem.notes||'');}}><Text style={S.aBTxt}>✏️ Edit</Text></TouchableOpacity>
               <TouchableOpacity style={[S.aBtn,{flex:1,alignItems:'center',backgroundColor:colors.error+'10',borderColor:colors.error+'30'}]} onPress={()=>doDelete(viewItem._id)}><Text style={[S.aBTxt,{color:colors.error}]}>🗑️</Text></TouchableOpacity>
+            </View>
+
+            <View style={{marginTop:20}}>
+              <Text style={S.dlL}>📎 Attachments</Text>
+              <TouchableOpacity style={[S.aBtn,{marginTop:8,alignItems:'center',paddingVertical:12}]} onPress={() => doUploadAttachment(viewItem._id)} disabled={actionId==='upload'}>
+                {actionId==='upload'?<ActivityIndicator size="small" color={colors.primary}/>:<Text style={S.aBTxt}>📎 Upload Attachment</Text>}
+              </TouchableOpacity>
+              {(viewItem.attachments && viewItem.attachments.length > 0) ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginTop:10}} contentContainerStyle={{gap:10}}>
+                  {viewItem.attachments.map((att, i) => (
+                    <View key={i} style={{position:'relative'}}>
+                      <TouchableOpacity onPress={() => Linking.openURL(`${API_URL}${att.fileUrl}`)}>
+                        <Image source={{uri: `${API_URL}${att.fileUrl}`}} style={{width:100,height:80,borderRadius:10,backgroundColor:colors.surfaceHighlight}} resizeMode="cover"/>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={{position:'absolute',top:-6,right:-6,backgroundColor:colors.error,borderRadius:10,width:20,height:20,alignItems:'center',justifyContent:'center'}} onPress={()=>doRemoveAttachment(viewItem._id, i)}>
+                        <Text style={{color:'#fff',fontSize:12,fontWeight:'900'}}>×</Text>
+                      </TouchableOpacity>
+                      <Text style={{fontSize:9,color:colors.textMuted,textAlign:'center',marginTop:2}} numberOfLines={1}>{att.filename}</Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              ) : <Text style={{color:colors.textMuted,fontSize:12,marginTop:8}}>No attachments yet</Text>}
             </View>
           </>}</>}
         </ScrollView>{!editOpen&&<TouchableOpacity style={S.mClose} onPress={()=>{setViewItem(null);setEditOpen(false);}}><Text style={S.mCloseTxt}>Close</Text></TouchableOpacity>}</View></View>

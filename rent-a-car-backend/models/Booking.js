@@ -22,12 +22,15 @@ const bookingSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['cash', 'card', 'online'],
+    enum: ['cash', 'card', 'online', 'bank_transfer'],
     default: 'cash'
+  },
+  paymentSlip: {
+    type: String
   },
   paymentStatus: {
     type: String,
-    enum: ['pending', 'paid', 'refunded'],
+    enum: ['pending', 'paid', 'refunded', 'rejected'],
     default: 'paid'
   },
   cancellationReason: {

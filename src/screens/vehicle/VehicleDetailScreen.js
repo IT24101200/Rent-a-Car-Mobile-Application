@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
-  Alert, ActivityIndicator, Platform, StatusBar
+  Alert, ActivityIndicator, Platform, StatusBar, Linking
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import api, { BASE_URL } from '../../api/api';
+import api, { BASE_URL, API_URL } from '../../api/api';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { SIZES, SHADOWS } from '../../theme/theme';
@@ -205,6 +205,17 @@ export default function VehicleDetailScreen({ route, navigation }) {
                   </View>
                 </View>
                 <Text style={styles.reviewComment}>"{r.comment || 'No comment provided'}"</Text>
+                
+                {r.photos && r.photos.length > 0 && (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 12}} contentContainerStyle={{gap: 8}}>
+                    {r.photos.map((p, i) => (
+                      <TouchableOpacity key={i} onPress={() => Linking.openURL(`${API_URL}${p}`)}>
+                        <Image source={{uri: `${API_URL}${p}`}} style={{width: 80, height: 60, borderRadius: 8, backgroundColor: colors.surfaceHighlight}} resizeMode="cover" />
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
+                
                 <Text style={styles.reviewDate}>{new Date(r.createdAt).toLocaleDateString()}</Text>
                 
                 {r.ownerReply?.text && (

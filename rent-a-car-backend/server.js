@@ -154,6 +154,31 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
   }
 });
 
+// POST /api/users/kyc — Handle KYC document uploads
+app.post('/api/users/kyc', authMiddleware, uploadKycFiles, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: 'User not found.' });
+
+    const identity = user.identity || {};
+    const DOC_KEYS = ['dlFront', 'dlBack', 'nic', 'selfie'];
+    
+    DOC_KEYS.forEach(key => {
+      if (req.files[key] && req.files[key][0]) {
+        identity[key] = `/uploads/${req.files[key][0].filename}`;
+      }
+    });
+
+    identity.status = 'pending';
+    user.identity = identity;
+    await user.save();
+
+    res.json({ message: 'Documents uploaded successfully.', user: { id: user._id, identity: user.identity } });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to upload documents.', error: err.message });
+  }
+});
+
 // POST /api/auth/register
 app.post('/api/auth/register', async (req, res) => {
   try {
@@ -584,12 +609,13 @@ app.patch('/api/owner/bookings/:id/complete', authMiddleware, ownerMiddleware, a
 //  BOOKING ROUTES
 // ═══════════════════════════════════════════════════════════════════
 
-// POST /api/bookings  — create a booking (requires auth)
+// POST /api/bookings  — create a booking (requires auth, pure JSON)
 app.post('/api/bookings', authMiddleware, async (req, res) => {
   try {
-    const { vehicleId, startDate, endDate, totalPrice } = req.body;
+    const { vehicleId, startDate, endDate, totalPrice, paymentMethod } = req.body;
     if (!vehicleId || !startDate || !endDate || !totalPrice)
       return res.status(400).json({ message: 'vehicleId, startDate, endDate and totalPrice are required.' });
+
 
     const start = new Date(startDate);
     const end   = new Date(endDate);
@@ -631,11 +657,30 @@ app.post('/api/bookings', authMiddleware, async (req, res) => {
       startDate: start,
       endDate:   end,
       totalPrice,
-      status:    'confirmed',
+      paymentMethod: paymentMethod || 'cash',
+      paymentStatus: paymentMethod === 'bank_transfer' ? 'pending' : 'paid',
+      status:        paymentMethod === 'bank_transfer' ? 'pending' : 'confirmed',
     });
     res.status(201).json(booking);
   } catch (err) {
+    console.error('[POST /api/bookings] Error:', err.message);
     res.status(500).json({ message: 'Error creating booking.', error: err.message });
+  }
+});
+
+// POST /api/bookings/:id/upload-slip — Upload payment slip after booking is created
+app.post('/api/bookings/:id/upload-slip', authMiddleware, upload.single('paymentSlip'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded. Please select an image.' });
+    const booking = await Booking.findOneAndUpdate(
+      { _id: req.params.id, user: req.user.id },
+      { paymentSlip: `/uploads/${req.file.filename}` },
+      { new: true }
+    );
+    if (!booking) return res.status(404).json({ message: 'Booking not found.' });
+    res.json({ message: 'Payment slip uploaded successfully.', booking });
+  } catch (err) {
+    res.status(500).json({ message: 'Error uploading payment slip.', error: err.message });
   }
 });
 
@@ -645,7 +690,18 @@ app.get('/api/bookings/my', authMiddleware, async (req, res) => {
     const bookings = await Booking.find({ user: req.user.id })
       .populate('vehicle', 'makeAndModel licensePlate pricePerDay imageUrl')
       .sort({ createdAt: -1 });
-    res.json(bookings);
+      
+    // Fetch all feedbacks given by this user
+    const feedbacks = await Feedback.find({ user: req.user.id }).select('booking');
+    const feedbackBookingIds = feedbacks.map(f => f.booking.toString());
+
+    // Attach hasReviewed to each booking
+    const bookingsWithReviewStatus = bookings.map(b => ({
+      ...b.toObject(),
+      hasReviewed: feedbackBookingIds.includes(b._id.toString())
+    }));
+
+    res.json(bookingsWithReviewStatus);
   } catch (err) {
     res.status(500).json({ message: 'Error fetching bookings.', error: err.message });
   }
@@ -820,6 +876,35 @@ app.post('/api/feedback', authMiddleware, async (req, res) => {
     res.status(201).json(feedback);
   } catch (err) {
     res.status(500).json({ message: 'Error submitting feedback.', error: err.message });
+  }
+});
+
+// POST /api/feedback/:id/upload-photo — Upload a photo to a feedback review (max 3)
+app.post('/api/feedback/:id/upload-photo', authMiddleware, upload.single('photo'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded.' });
+    const feedback = await Feedback.findOne({ _id: req.params.id, user: req.user.id });
+    if (!feedback) return res.status(404).json({ message: 'Feedback not found.' });
+    if (feedback.photos && feedback.photos.length >= 3)
+      return res.status(400).json({ message: 'Maximum 3 photos per review.' });
+    feedback.photos = [...(feedback.photos || []), `/uploads/${req.file.filename}`];
+    await feedback.save();
+    res.json({ message: 'Photo uploaded.', feedback });
+  } catch (err) {
+    res.status(500).json({ message: 'Error uploading photo.', error: err.message });
+  }
+});
+
+// GET /api/feedback/my — get current user's submitted feedback
+app.get('/api/feedback/my', authMiddleware, async (req, res) => {
+  try {
+    const feedbacks = await Feedback.find({ user: req.user.id })
+      .populate('vehicle', 'makeAndModel imageUrl licensePlate')
+      .populate('booking', 'startDate endDate')
+      .sort({ createdAt: -1 });
+    res.json(feedbacks);
+  } catch (err) {
+    res.status(500).json({ message: 'Error fetching your feedback.', error: err.message });
   }
 });
 
@@ -1111,6 +1196,27 @@ app.patch('/api/admin/users/:id/status', authMiddleware, adminMiddleware, async 
   }
 });
 
+// PATCH /api/admin/users/:id/kyc — Approve or Reject KYC
+app.patch('/api/admin/users/:id/kyc', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!['verified', 'rejected', 'pending', 'unverified'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid KYC status.' });
+    }
+    
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found.' });
+    
+    user.identity = user.identity || {};
+    user.identity.status = status;
+    await user.save();
+    
+    res.json({ message: `KYC status updated to ${status}.`, user });
+  } catch (err) {
+    res.status(500).json({ message: 'Error updating KYC status.', error: err.message });
+  }
+});
+
 // PATCH /api/admin/users/:id/role — Promote user to Admin
 app.patch('/api/admin/users/:id/role', authMiddleware, adminMiddleware, async (req, res) => {
   try {
@@ -1284,6 +1390,34 @@ app.patch('/api/admin/vehicles/:id', authMiddleware, adminOrStaffMiddleware(['fl
     res.json({ message: 'Vehicle updated.', vehicle: populated });
   } catch (err) {
     res.status(500).json({ message: 'Error updating vehicle.', error: err.message });
+  }
+});
+
+// PATCH /api/admin/payments/:id/status — Approve or Reject a Bank Transfer payment
+app.patch('/api/admin/payments/:id/status', authMiddleware, adminOrStaffMiddleware(['finance', 'payments']), async (req, res) => {
+  try {
+    const { action } = req.body; // 'approve' or 'reject'
+    const booking = await Booking.findById(req.params.id)
+      .populate('user', 'name email')
+      .populate('vehicle', 'makeAndModel licensePlate');
+      
+    if (!booking) return res.status(404).json({ message: 'Booking not found.' });
+
+    if (action === 'approve') {
+      booking.paymentStatus = 'paid';
+      booking.status = 'confirmed';
+    } else if (action === 'reject') {
+      booking.paymentStatus = 'rejected';
+      booking.status = 'cancelled';
+      booking.cancellationReason = 'Payment rejected by administrator.';
+    } else {
+      return res.status(400).json({ message: 'Invalid action.' });
+    }
+
+    await booking.save();
+    res.json({ message: `Payment ${action}d successfully.`, booking });
+  } catch (err) {
+    res.status(500).json({ message: 'Error updating payment status.', error: err.message });
   }
 });
 
@@ -1554,6 +1688,42 @@ app.delete('/api/admin/reports/:id', authMiddleware, adminOrStaffMiddleware(['re
   }
 });
 
+// POST /api/admin/reports/:id/upload-attachment — Upload attachment to a saved report
+app.post('/api/admin/reports/:id/upload-attachment', authMiddleware, adminOrStaffMiddleware(['report']), upload.single('attachment'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded.' });
+    const report = await Report.findById(req.params.id);
+    if (!report) return res.status(404).json({ message: 'Report not found.' });
+    report.attachments = [...(report.attachments || []), {
+      filename: req.file.originalname || req.file.filename,
+      fileUrl: `/uploads/${req.file.filename}`,
+      uploadedAt: new Date()
+    }];
+    await report.save();
+    const populated = await Report.findById(report._id).populate('createdBy', 'name');
+    res.json({ message: 'Attachment uploaded.', report: populated });
+  } catch (err) {
+    res.status(500).json({ message: 'Error uploading attachment.', error: err.message });
+  }
+});
+
+// DELETE /api/admin/reports/:id/attachments/:index — Remove attachment by index
+app.delete('/api/admin/reports/:id/attachments/:index', authMiddleware, adminOrStaffMiddleware(['report']), async (req, res) => {
+  try {
+    const report = await Report.findById(req.params.id);
+    if (!report) return res.status(404).json({ message: 'Report not found.' });
+    const idx = parseInt(req.params.index);
+    if (isNaN(idx) || idx < 0 || idx >= (report.attachments || []).length)
+      return res.status(400).json({ message: 'Invalid attachment index.' });
+    report.attachments.splice(idx, 1);
+    await report.save();
+    const populated = await Report.findById(report._id).populate('createdBy', 'name');
+    res.json({ message: 'Attachment removed.', report: populated });
+  } catch (err) {
+    res.status(500).json({ message: 'Error removing attachment.', error: err.message });
+  }
+});
+
 // ── Automated Booking Cancellations (Cron Job) ────────────────────────
 const cron = require('node-cron');
 
@@ -1644,6 +1814,11 @@ app.patch('/api/admin/users/:id/staff-role', authMiddleware, adminMiddleware, as
   } catch (err) {
     res.status(500).json({ message: 'Error updating staff role.', error: err.message });
   }
+});
+
+// Root Endpoint
+app.get('/', (req, res) => {
+  res.json({ message: 'Welcome to the Rent-A-Car Backend API' });
 });
 
 const PORT = process.env.PORT || 5000;

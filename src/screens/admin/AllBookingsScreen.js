@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput,
-  ActivityIndicator, Alert, RefreshControl, StatusBar, Modal, ScrollView, Platform
+  ActivityIndicator, Alert, RefreshControl, StatusBar, Modal, ScrollView, Platform, Image
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import api from '../../api/api';
@@ -202,7 +202,18 @@ export default function AllBookingsScreen() {
                 {detailItem.cancellationReason && (<><Text style={S.dlLabel}>Cancellation Reason</Text><Text style={[S.dlValue,{color:colors.error}]}>{detailItem.cancellationReason}</Text></>)}
                 {detailItem.refundStatus && detailItem.refundStatus !== 'none' && (<><Text style={S.dlLabel}>Refund Status</Text><Text style={[S.dlValue,{color:detailItem.refundStatus==='issued'?colors.success:colors.warning}]}>{detailItem.refundStatus.toUpperCase()}</Text></>)}
                 {detailItem.checkInDetails?.time && (<><Text style={S.dlLabel}>Check-In</Text><Text style={S.dlValue}>🕐 {new Date(detailItem.checkInDetails.time).toLocaleString()}{detailItem.checkInDetails.odometer?` • Odometer: ${detailItem.checkInDetails.odometer} km`:''}</Text></>)}
-                {detailItem.checkOutDetails?.time && (<><Text style={S.dlLabel}>Check-Out</Text><Text style={S.dlValue}>🕐 {new Date(detailItem.checkOutDetails.time).toLocaleString()}{detailItem.checkOutDetails.odometer?` • Odometer: ${detailItem.checkOutDetails.odometer} km`:''}</Text></>)}
+                {detailItem.checkOutDetails?.time && (
+                  <>
+                    <Text style={S.dlLabel}>Check-Out</Text>
+                    <Text style={S.dlValue}>🕐 {new Date(detailItem.checkOutDetails.time).toLocaleString()}{detailItem.checkOutDetails.odometer?` • Odometer: ${detailItem.checkOutDetails.odometer} km`:''}</Text>
+                    {detailItem.checkOutDetails.conditionPhoto && (
+                      <View style={{marginTop: 8}}>
+                        <Text style={[S.dlLabel, {fontSize: 12}]}>Condition Photo</Text>
+                        <Image source={{ uri: `${api.defaults.baseURL || 'http://localhost:5000'}${detailItem.checkOutDetails.conditionPhoto}` }} style={{width: 150, height: 100, borderRadius: 8, backgroundColor: colors.surfaceHighlight}} resizeMode="cover" />
+                      </View>
+                    )}
+                  </>
+                )}
                 <Text style={S.dlLabel}>Booking ID</Text>
                 <Text style={[S.dlValue,{fontFamily:Platform.OS==='ios'?'Menlo':'monospace',fontSize:12}]}>{detailItem._id}</Text>
                 <Text style={S.dlLabel}>Created</Text>

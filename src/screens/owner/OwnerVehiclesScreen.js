@@ -135,7 +135,7 @@ export default function OwnerVehiclesScreen({ navigation }) {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') return Alert.alert('Permission needed', 'Please grant photo library access.');
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true, aspect: [4, 3], quality: 0.8,
     });
     if (!result.canceled && result.assets.length > 0) {
@@ -151,7 +151,7 @@ export default function OwnerVehiclesScreen({ navigation }) {
       return Alert.alert('Permission needed', 'Please grant photo library access.');
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [16, 9],
       quality: 0.8,
@@ -454,6 +454,14 @@ export default function OwnerVehiclesScreen({ navigation }) {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* ── FAB to Add Vehicle ── */}
+      <TouchableOpacity 
+        style={styles.fab} 
+        activeOpacity={0.8} 
+        onPress={() => navigation.navigate('AddVehicle')}
+      >
+        <Text style={styles.fabText}>+</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -536,4 +544,8 @@ const getStyles = (C) => StyleSheet.create({
   reqBadgeText:       { color: C.error, fontSize: 9, fontWeight: '800' },
   optBadge:           { backgroundColor: C.background, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   optBadgeText:       { color: C.textMuted, fontSize: 9, fontWeight: '700' },
+
+  // ── FAB ──
+  fab: { position: 'absolute', bottom: 24, right: 24, width: 60, height: 60, borderRadius: 30, backgroundColor: C.primary, justifyContent: 'center', alignItems: 'center', ...SHADOWS.float, elevation: 8, zIndex: 99 },
+  fabText: { fontSize: 32, color: '#FFFFFF', fontWeight: '400', lineHeight: 34 },
 });

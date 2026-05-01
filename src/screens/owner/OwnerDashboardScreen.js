@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Alert, SafeAreaView, RefreshControl, ScrollView, StatusBar
+  ActivityIndicator, Alert, SafeAreaView, RefreshControl, ScrollView, Platform, Image, StatusBar
 } from 'react-native';
 import api from '../../api/api';
 import { SIZES, SHADOWS } from '../../theme/theme';
@@ -51,6 +51,7 @@ export default function OwnerDashboardScreen({ navigation }) {
 
   const [verificationModal, setVerificationModal] = useState(null);
   const [verifying, setVerifying] = useState(false);
+  const [detailModal, setDetailModal] = useState(null);
 
   const completeBooking = async () => {
     setVerifying(true);
@@ -140,7 +141,7 @@ export default function OwnerDashboardScreen({ navigation }) {
           </View>
         }
         renderItem={({ item }) => (
-          <View style={styles.card}>
+          <TouchableOpacity style={styles.card} activeOpacity={0.9} onPress={() => setDetailModal(item)}>
             <View style={styles.cardHeader}>
               <View>
                 <Text style={styles.vehicleName}>{item.vehicle?.makeAndModel || 'Unknown Vehicle'}</Text>
@@ -207,7 +208,7 @@ export default function OwnerDashboardScreen({ navigation }) {
                 <Text style={styles.upcomingNote}>Vehicle must be made available for pick-up securely.</Text>
               </View>
             )}
-          </View>
+          </TouchableOpacity>
         )}
       />
 
@@ -236,6 +237,60 @@ export default function OwnerDashboardScreen({ navigation }) {
               </TouchableOpacity>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setVerificationModal(null)} disabled={verifying}><Text style={styles.cancelBtnText}>Discard / Review Later</Text></TouchableOpacity>
             </ScrollView>
+          </View>
+        </Modal>
+      )}
+
+      {/* ─── Detail Modal ─────────────────────────────────────── */}
+      {detailModal && (
+        <Modal visible animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalBox, { maxHeight: '85%' }]}>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <Text style={styles.modalTitle}>📋 Trip Details</Text>
+                
+                <Text style={styles.ratingLabel}>Vehicle</Text>
+                <Text style={styles.modalSub}>{detailModal.vehicle?.makeAndModel || 'Unknown'} {detailModal.vehicle?.licensePlate ? `(${detailModal.vehicle.licensePlate})` : ''}</Text>
+
+                <Text style={styles.ratingLabel}>Renter</Text>
+                <Text style={styles.modalSub}>{detailModal.user?.name} — {detailModal.user?.email}</Text>
+
+                <Text style={styles.ratingLabel}>Dates</Text>
+                <Text style={styles.modalSub}>{new Date(detailModal.startDate).toLocaleString([], {dateStyle:'medium', timeStyle:'short'})} → {new Date(detailModal.endDate).toLocaleString([], {dateStyle:'medium', timeStyle:'short'})}</Text>
+
+                <Text style={styles.ratingLabel}>Total Payout</Text>
+                <Text style={[styles.modalSub, { color: C.success, fontWeight: '900', fontSize: 20 }]}>Rs. {(detailModal.totalPrice || 0).toLocaleString()}</Text>
+
+                {detailModal.checkInDetails?.time && (
+                  <>
+                    <Text style={styles.ratingLabel}>Check-In Details</Text>
+                    <Text style={styles.modalSub}>🕐 {new Date(detailModal.checkInDetails.time).toLocaleString()}</Text>
+                    <Text style={styles.modalSub}>📟 Odometer: {detailModal.checkInDetails.odometer} km</Text>
+                  </>
+                )}
+
+                {detailModal.checkOutDetails?.time && (
+                  <>
+                    <Text style={styles.ratingLabel}>Check-Out Details</Text>
+                    <Text style={styles.modalSub}>🕐 {new Date(detailModal.checkOutDetails.time).toLocaleString()}</Text>
+                    <Text style={styles.modalSub}>📟 Odometer: {detailModal.checkOutDetails.odometer} km</Text>
+                    {detailModal.checkOutDetails.conditionPhoto && (
+                      <View style={{marginTop: 8}}>
+                        <Text style={{fontSize: 12, color: C.textSecondary, marginBottom: 4}}>Condition Photo:</Text>
+                        <Image source={{ uri: `${api.defaults.baseURL || 'http://localhost:5000'}${detailModal.checkOutDetails.conditionPhoto}` }} style={{width: 150, height: 100, borderRadius: 8, backgroundColor: C.surfaceHighlight}} resizeMode="cover" />
+                      </View>
+                    )}
+                  </>
+                )}
+
+                <Text style={styles.ratingLabel}>Booking ID</Text>
+                <Text style={[styles.modalSub, { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 12 }]}>{detailModal._id}</Text>
+                <View style={{ height: 20 }} />
+              </ScrollView>
+              <TouchableOpacity style={styles.closeModalBtn} onPress={() => setDetailModal(null)}>
+                <Text style={styles.closeModalBtnText}>Close</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </Modal>
       )}
@@ -307,4 +362,6 @@ const getStyles = (C) => StyleSheet.create({
   primaryActionText:{ color: '#FFFFFF', fontWeight: '800', fontSize: 16 },
   cancelBtn:       { marginTop: 12, alignItems: 'center', padding: 14 },
   cancelBtnText:   { color: C.textSecondary, fontWeight: '700' },
+  closeModalBtn:   { backgroundColor: C.primary, paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 10 },
+  closeModalBtnText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 16 },
 });

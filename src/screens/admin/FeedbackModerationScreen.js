@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput,
-  ActivityIndicator, Alert, RefreshControl, StatusBar, Modal, ScrollView, Platform
+  ActivityIndicator, Alert, RefreshControl, StatusBar, Modal, ScrollView, Platform, Image, Linking
 } from 'react-native';
-import api from '../../api/api';
+import api, { API_URL } from '../../api/api';
 import { useTheme } from '../../context/ThemeContext';
 import { SIZES, SHADOWS } from '../../theme/theme';
 
@@ -95,6 +95,7 @@ export default function FeedbackModerationScreen() {
         <Text style={S.metaText}>👤 {item.user?.name||'N/A'}</Text>
         <Text style={S.metaText}>🚘 {getVehicleName(item)}</Text>
         <Text style={S.metaText}>📅 {fmt(item.createdAt)}</Text>
+        {item.photos && item.photos.length > 0 && <Text style={S.metaText}>📷 {item.photos.length} photo{item.photos.length > 1 ? 's' : ''}</Text>}
       </View>
       {item.ownerReply?.text && <View style={S.replyBox}><Text style={S.replyLabel}>Owner Reply:</Text><Text style={S.replyText}>{item.ownerReply.text}</Text></View>}
       {item.adminNote && <View style={S.noteBox}><Text style={S.noteLabel}>📝 Admin Note:</Text><Text style={S.noteText}>{item.adminNote}</Text></View>}
@@ -170,6 +171,19 @@ export default function FeedbackModerationScreen() {
                   {detailItem.flagged && <Text style={[S.flagBadge,{marginTop:8}]}>🚩 Flagged for Review</Text>}
                 </View>
                 <Text style={[S.comment,{fontSize:17,marginBottom:20,textAlign:'center'}]}>"{detailItem.comment || 'No comment'}"</Text>
+
+                {detailItem.photos && detailItem.photos.length > 0 && (
+                  <View style={{marginBottom:16}}>
+                    <Text style={S.dlLabel}>📷 Customer Photos</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginTop:8}} contentContainerStyle={{gap:10}}>
+                      {detailItem.photos.map((p, i) => (
+                        <TouchableOpacity key={i} onPress={() => Linking.openURL(`${API_URL}${p}`)}>
+                          <Image source={{uri: `${API_URL}${p}`}} style={{width:120,height:90,borderRadius:12,backgroundColor:colors.surfaceHighlight}} resizeMode="cover"/>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
 
                 <Text style={S.dlLabel}>Customer</Text>
                 <Text style={S.dlValue}>{detailItem.user?.name||'N/A'} ({detailItem.user?.email||''})</Text>

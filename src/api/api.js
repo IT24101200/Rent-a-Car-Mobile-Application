@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 //  MODE 1 — Public Tunnel (use when phone can't reach your PC directly)
 //           LocalTunnel (Temporary)
 export const BASE_URL = 'http://192.168.8.194:5000'; // Hard-swapping to local ip for stability
+export const API_URL = BASE_URL; // Alias used by PaymentManagerScreen for image URLs
 //
 //  MODE 2 — Local Wi-Fi (phone & PC on same network, firewall open)
 //           export const BASE_URL = 'http://192.168.8.194:5000';

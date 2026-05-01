@@ -5,6 +5,11 @@ const reportSchema = new mongoose.Schema({
   type:      { type: String, enum: ['revenue', 'bookings', 'vehicles', 'full'], default: 'full' },
   notes:     { type: String, trim: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  attachments: [{
+    filename:   { type: String },
+    fileUrl:    { type: String },
+    uploadedAt: { type: Date, default: Date.now }
+  }],
   snapshot: {
     totalRevenue:      Number,
     totalBookings:     Number,

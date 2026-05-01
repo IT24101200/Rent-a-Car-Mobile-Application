@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView,
@@ -10,8 +11,14 @@ import { useTheme } from '../../context/ThemeContext';
 import { SIZES, SHADOWS } from '../../theme/theme';
 
 export default function ProfileScreen({ navigation }) {
-  const { user, login, logout } = useAuth();
+  const { user, login, logout, refreshUser } = useAuth();
   const { colors, isDark, themeMode, changeThemeMode } = useTheme();
+  
+  useFocusEffect(
+    useCallback(() => {
+      refreshUser();
+    }, [])
+  );
   const styles = React.useMemo(() => getStyles(colors), [colors]);
 
   const [name,        setName]        = useState(user?.name     || '');
@@ -118,7 +125,7 @@ export default function ProfileScreen({ navigation }) {
                 </View>
                 <View style={styles.kycTextCol}>
                   <Text style={styles.kycTitle}>Identity Verification</Text>
-                  <Text style={[styles.kycStatus, isVerified && {color: COLORS.success}, isPending && {color: COLORS.warning}]}>
+                  <Text style={[styles.kycStatus, isVerified && {color: colors.success}, isPending && {color: colors.warning}]}>
                     {isVerified ? 'Verified' : isPending ? 'Pending Review' : 'Not Verified'}
                   </Text>
                 </View>

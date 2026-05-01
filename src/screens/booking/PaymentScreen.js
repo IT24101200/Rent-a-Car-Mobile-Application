@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, Alert, ActivityIndicator, TextInput, StatusBar
+  ScrollView, Alert, ActivityIndicator, TextInput, StatusBar, Image
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import api from '../../api/api';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -23,10 +24,18 @@ export default function PaymentScreen({ route, navigation }) {
   const [cardNumber, setCardNumber] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [cvv,        setCvv]        = useState('');
+  const [paymentSlipUri, setPaymentSlipUri] = useState(null);
   const [errors,     setErrors]     = useState({});
 
   const validateForm = () => {
     if (payMethod === 'cash') return true;
+    if (payMethod === 'bank_transfer') {
+      if (!paymentSlipUri) {
+        setErrors({ slip: 'Payment slip is required.' });
+        return false;
+      }
+      return true;
+    }
     
     let newErrors = {};
     const cleanCard = cardNumber.replace(/\s+/g, '');
@@ -57,14 +66,36 @@ export default function PaymentScreen({ route, navigation }) {
     if (!validateForm()) return;
     setLoading(true);
     try {
-      // Create the booking in the backend
-      await api.post('/api/bookings', {
-        vehicleId:  vehicle._id,
-        startDate,
-        endDate,
-        totalPrice: total,
-        status:     'confirmed',
-      });
+      if (payMethod === 'bank_transfer') {
+        // STEP 1: Create the booking with pure JSON (no file)
+        const bookingRes = await api.post('/api/bookings', {
+          vehicleId:     vehicle._id,
+          startDate,
+          endDate,
+          totalPrice:    total,
+          paymentMethod: payMethod,
+        });
+        const bookingId = bookingRes.data._id;
+
+        // STEP 2: Upload the slip to the dedicated multipart endpoint
+        const formData = new FormData();
+        const uriParts = paymentSlipUri.split('.');
+        const fileType = uriParts[uriParts.length - 1].toLowerCase();
+        const mimeType = fileType === 'jpg' || fileType === 'jpeg' ? 'image/jpeg' : `image/${fileType}`;
+        formData.append('paymentSlip', { uri: paymentSlipUri, name: `slip_${Date.now()}.${fileType}`, type: mimeType });
+
+        await api.post(`/api/bookings/${bookingId}/upload-slip`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      } else {
+        await api.post('/api/bookings', {
+          vehicleId:     vehicle._id,
+          startDate,
+          endDate,
+          totalPrice:    total,
+          paymentMethod: payMethod,
+        });
+      }
       setPaid(true);
     } catch (err) {
       Alert.alert('Payment Failed', err.response?.data?.message || 'Something went wrong. Please try again.');
@@ -73,15 +104,17 @@ export default function PaymentScreen({ route, navigation }) {
     }
   };
 
+
   // ── Success Screen ────────────────────────────────────────────────
   if (paid) {
     return (
       <View style={styles.successScreen}>
         <StatusBar barStyle="dark-content" backgroundColor={colors.success + '15'} />
         <View style={styles.successCenter}>
-          <Text style={styles.successEmoji}>🎉</Text>
-          <Text style={styles.successTitle}>Booking Confirmed!</Text>
-          <Text style={styles.successSub}>Your vehicle has been successfully booked.</Text>
+          <Text style={styles.successEmoji}>{payMethod === 'bank_transfer' ? '⏳' : '🎉'}</Text>
+          <Text style={styles.successTitle}>{payMethod === 'bank_transfer' ? 'Booking Submitted!' : 'Booking Confirmed!'}</Text>
+          <Text style={styles.successSub}>{payMethod === 'bank_transfer' ? 'Your booking is pending payment verification by our team.' : 'Your vehicle has been successfully booked.'}</Text>
+
           
           <View style={styles.successCard}>
             <Text style={styles.successVehicle}>🚗 {vehicle.makeAndModel}</Text>
@@ -137,6 +170,10 @@ export default function PaymentScreen({ route, navigation }) {
               <Text style={styles.payMethodIcon}>💵</Text>
               <Text style={[styles.payMethodText, payMethod === 'cash' && styles.payMethodTextActive]}>Cash on Pickup</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={[styles.payMethod, payMethod === 'bank_transfer' && styles.payMethodActive]} onPress={() => setPayMethod('bank_transfer')} activeOpacity={0.8}>
+              <Text style={styles.payMethodIcon}>🏦</Text>
+              <Text style={[styles.payMethodText, payMethod === 'bank_transfer' && styles.payMethodTextActive]}>Bank Transfer</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Interactive Card Fields */}
@@ -161,6 +198,34 @@ export default function PaymentScreen({ route, navigation }) {
                   {errors.cvv && <Text style={styles.errorText}>{errors.cvv}</Text>}
                 </View>
               </View>
+            </View>
+          )}
+
+          {payMethod === 'bank_transfer' && (
+            <View style={styles.inputContainer}>
+              <View style={styles.bankDetailsBox}>
+                <Text style={styles.bankDetailsTitle}>Bank Details</Text>
+                <Text style={styles.bankDetailsText}><Text style={{fontWeight:'bold'}}>Bank:</Text> Bank of Ceylon</Text>
+                <Text style={styles.bankDetailsText}><Text style={{fontWeight:'bold'}}>Account Name:</Text> Rent-a-Car System</Text>
+                <Text style={styles.bankDetailsText}><Text style={{fontWeight:'bold'}}>Account Number:</Text> 123456789</Text>
+                <Text style={styles.bankDetailsText}><Text style={{fontWeight:'bold'}}>Branch:</Text> City Center</Text>
+              </View>
+
+              <Text style={[styles.inputLabel, {marginTop: 20}]}>Upload Transfer Slip</Text>
+              <TouchableOpacity style={styles.uploadBtn} onPress={async () => {
+                const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
+                if (!result.canceled) { setPaymentSlipUri(result.assets[0].uri); setErrors({}); }
+              }}>
+                {paymentSlipUri ? (
+                  <Image source={{ uri: paymentSlipUri }} style={styles.slipImage} resizeMode="cover" />
+                ) : (
+                  <>
+                    <Text style={{fontSize: 32, marginBottom: 8}}>🧾</Text>
+                    <Text style={{color: colors.textSecondary, fontWeight: '600'}}>Tap to upload slip screenshot</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              {errors.slip && <Text style={styles.errorText}>{errors.slip}</Text>}
             </View>
           )}
         </View>
@@ -234,6 +299,12 @@ const getStyles = (C) => StyleSheet.create({
   payBtnAmount:    { color: 'rgba(255,255,255,0.8)', fontSize: 14, marginTop: 4, fontWeight: '600' },
   disclaimer:      { color: C.textMuted, textAlign: 'center', marginTop: 20, fontSize: 12, fontWeight: '600' },
   
+  bankDetailsBox:  { backgroundColor: C.surfaceHighlight, padding: 16, borderRadius: SIZES.radius, borderWidth: 1, borderColor: C.border },
+  bankDetailsTitle:{ fontSize: 14, fontWeight: '800', color: C.textPrimary, marginBottom: 8 },
+  bankDetailsText: { fontSize: 13, color: C.textSecondary, marginBottom: 4 },
+  uploadBtn:       { borderWidth: 2, borderColor: C.border, borderStyle: 'dashed', borderRadius: SIZES.radius, height: 180, justifyContent: 'center', alignItems: 'center', backgroundColor: C.background, overflow: 'hidden' },
+  slipImage:       { width: '100%', height: '100%' },
+
   // Success
   successScreen:   { flex: 1, backgroundColor: C.success + '15', justifyContent: 'center' },
   successCenter:   { alignItems: 'center', padding: 32 },

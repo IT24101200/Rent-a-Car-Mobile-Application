@@ -37,6 +37,7 @@ export default function MyBookingsScreen() {
   const [feedback,   setFeedback]   = useState('');
   const [rating,     setRating]     = useState(5);
   const [submitting, setSubmitting] = useState(false);
+  const [feedbackPhotos, setFeedbackPhotos] = useState([]);
 
   // Reschedule Modal State
   const [rescheduleModal, setRescheduleModal] = useState(null);
@@ -55,6 +56,8 @@ export default function MyBookingsScreen() {
   const [photoUri, setPhotoUri] = useState(null);
   const [processingState, setProcessingState] = useState(false);
 
+  // Detail Modal
+  const [detailModal, setDetailModal] = useState(null);
 
   const fetchBookings = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -139,8 +142,20 @@ export default function MyBookingsScreen() {
     if (!feedback.trim()) { Alert.alert('Validation', 'Please write your feedback.'); return; }
     setSubmitting(true);
     try {
-      await api.post('/api/feedback', { bookingId: modal._id, rating, comment: feedback.trim() });
-      Alert.alert('Thank You!', 'Your feedback has been submitted.', [{ text: 'OK', onPress: () => { setModal(null); setFeedback(''); setRating(5); } }]);
+      // Step 1: Create feedback with JSON
+      const res = await api.post('/api/feedback', { bookingId: modal._id, rating, comment: feedback.trim() });
+      const feedbackId = res.data._id;
+
+      // Step 2: Upload photos one by one
+      for (const photoUri of feedbackPhotos) {
+        const formData = new FormData();
+        const ext = photoUri.split('.').pop().toLowerCase();
+        const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`;
+        formData.append('photo', { uri: photoUri, name: `review_${Date.now()}.${ext}`, type: mime });
+        await api.post(`/api/feedback/${feedbackId}/upload-photo`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      }
+
+      Alert.alert('Thank You!', 'Your feedback has been submitted.', [{ text: 'OK', onPress: () => { setModal(null); setFeedback(''); setRating(5); setFeedbackPhotos([]); } }]);
     } catch {
       Alert.alert('Error', 'Failed to submit feedback.');
     } finally {
@@ -156,9 +171,31 @@ export default function MyBookingsScreen() {
     setPhotoUri(null);
   }
 
-  const pickConditionPhoto = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7 });
-    if (!result.canceled) setPhotoUri(result.assets[0].uri);
+  const pickConditionPhoto = () => {
+    Alert.alert(
+      'Upload Odometer Photo',
+      'Choose a method to upload the odometer photo.',
+      [
+        {
+          text: 'Take Photo',
+          onPress: async () => {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== 'granted') return Alert.alert('Permission Denied', 'Camera permissions are required to take a live photo.');
+            
+            const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7 });
+            if (!result.canceled) setPhotoUri(result.assets[0].uri);
+          }
+        },
+        {
+          text: 'Choose from Gallery',
+          onPress: async () => {
+            const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
+            if (!result.canceled) setPhotoUri(result.assets[0].uri);
+          }
+        },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
   };
 
   const submitAccountability = async () => {
@@ -248,7 +285,7 @@ export default function MyBookingsScreen() {
           const canCheckIn = item.status === 'confirmed' && timeToStartMs <= (30 * 60 * 1000); // within 30 mins
 
           return (
-            <View style={styles.card}>
+            <TouchableOpacity style={styles.card} activeOpacity={0.9} onPress={() => setDetailModal(item)}>
               <View style={styles.cardHeader}>
                 {item.vehicle?.imageUrl ? (
                   <Image source={{ uri: `${BASE_URL}${item.vehicle?.imageUrl}` }} style={styles.vehicleImg} />
@@ -320,15 +357,90 @@ export default function MyBookingsScreen() {
               {/* Action Buttons for HISTORY */}
               {item.status === 'completed' && activeTab === 'history' && (
                 <View style={styles.actionRow}>
-                  <TouchableOpacity style={styles.feedbackBtn} onPress={() => setModal(item)}>
-                    <Text style={styles.feedbackBtnText}>Leave Feedback</Text>
-                  </TouchableOpacity>
+                  {!item.hasReviewed ? (
+                    <TouchableOpacity style={styles.feedbackBtn} onPress={() => setModal(item)}>
+                      <Text style={styles.feedbackBtnText}>Leave Feedback</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={[styles.activePill, {backgroundColor: colors.surfaceHighlight}]}>
+                      <Text style={[styles.activePillText, {color: colors.textSecondary}]}>Feedback Submitted ⭐</Text>
+                    </View>
+                  )}
                 </View>
               )}
-            </View>
+            </TouchableOpacity>
           );
         }}
       />
+
+      {/* ─── Detail Modal ─────────────────────────────────────── */}
+      {detailModal && (
+        <Modal visible animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalBox, { maxHeight: '85%' }]}>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <Text style={styles.modalTitle}>📋 Trip Details</Text>
+                <View style={[styles.badge, { backgroundColor: (STATUS_COLOR[detailModal.status] || STATUS_COLOR.pending).bg, alignSelf: 'flex-start', marginBottom: 16 }]}>
+                  <Text style={[styles.badgeText, { color: (STATUS_COLOR[detailModal.status] || STATUS_COLOR.pending).text }]}>
+                    {detailModal.status.toUpperCase()}
+                  </Text>
+                </View>
+
+                <Text style={styles.ratingLabel}>Vehicle</Text>
+                <Text style={styles.detailValueText}>{detailModal.vehicle?.makeAndModel || 'Unknown'} {detailModal.vehicle?.licensePlate ? `(${detailModal.vehicle.licensePlate})` : ''}</Text>
+
+                <Text style={styles.ratingLabel}>Dates</Text>
+                <Text style={styles.detailValueText}>{new Date(detailModal.startDate).toLocaleString([], {dateStyle:'medium', timeStyle:'short'})} → {new Date(detailModal.endDate).toLocaleString([], {dateStyle:'medium', timeStyle:'short'})}</Text>
+
+                <Text style={styles.ratingLabel}>Total Price</Text>
+                <Text style={[styles.detailValueText, { color: colors.success, fontWeight: '900', fontSize: 20 }]}>Rs. {(detailModal.totalPrice || 0).toLocaleString()}</Text>
+
+                {detailModal.cancellationReason && (
+                  <>
+                    <Text style={styles.ratingLabel}>Cancellation Reason</Text>
+                    <Text style={[styles.detailValueText, { color: colors.error }]}>{detailModal.cancellationReason}</Text>
+                  </>
+                )}
+                {detailModal.refundStatus && detailModal.refundStatus !== 'none' && (
+                  <>
+                    <Text style={styles.ratingLabel}>Refund Status</Text>
+                    <Text style={[styles.detailValueText, { color: detailModal.refundStatus === 'issued' ? colors.success : colors.warning }]}>{detailModal.refundStatus.toUpperCase()}</Text>
+                  </>
+                )}
+
+                {detailModal.checkInDetails?.time && (
+                  <>
+                    <Text style={styles.ratingLabel}>Check-In Details</Text>
+                    <Text style={styles.detailValueText}>🕐 {new Date(detailModal.checkInDetails.time).toLocaleString()}</Text>
+                    <Text style={styles.detailValueText}>📟 Odometer: {detailModal.checkInDetails.odometer} km</Text>
+                  </>
+                )}
+
+                {detailModal.checkOutDetails?.time && (
+                  <>
+                    <Text style={styles.ratingLabel}>Check-Out Details</Text>
+                    <Text style={styles.detailValueText}>🕐 {new Date(detailModal.checkOutDetails.time).toLocaleString()}</Text>
+                    <Text style={styles.detailValueText}>📟 Odometer: {detailModal.checkOutDetails.odometer} km</Text>
+                    {detailModal.checkOutDetails.conditionPhoto && (
+                      <View style={{marginTop: 8}}>
+                        <Text style={{fontSize: 12, color: colors.textSecondary, marginBottom: 4}}>Condition Photo:</Text>
+                        <Image source={{ uri: `${BASE_URL}${detailModal.checkOutDetails.conditionPhoto}` }} style={{width: 150, height: 100, borderRadius: 8, backgroundColor: colors.surfaceHighlight}} resizeMode="cover" />
+                      </View>
+                    )}
+                  </>
+                )}
+
+                <Text style={styles.ratingLabel}>Booking ID</Text>
+                <Text style={[styles.detailValueText, { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 12 }]}>{detailModal._id}</Text>
+                <View style={{ height: 20 }} />
+              </ScrollView>
+              <TouchableOpacity style={styles.closeModalBtn} onPress={() => setDetailModal(null)}>
+                <Text style={styles.closeModalBtnText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
 
       {/* ─── Feedback Modal ─────────────────────────────────── */}
       <Modal visible={!!modal} animationType="slide" transparent>
@@ -352,6 +464,27 @@ export default function MyBookingsScreen() {
               multiline numberOfLines={4} value={feedback} onChangeText={setFeedback}
             />
 
+            <Text style={styles.ratingLabel}>Photos (optional, max 3)</Text>
+            <View style={{flexDirection:'row',gap:10,marginBottom:16,flexWrap:'wrap'}}>
+              {feedbackPhotos.map((uri, i) => (
+                <View key={i} style={{position:'relative'}}>
+                  <Image source={{uri}} style={{width:80,height:80,borderRadius:10}} />
+                  <TouchableOpacity style={{position:'absolute',top:-6,right:-6,backgroundColor:colors.error,borderRadius:10,width:20,height:20,alignItems:'center',justifyContent:'center'}} onPress={() => setFeedbackPhotos(p => p.filter((_,j) => j !== i))}>
+                    <Text style={{color:'#fff',fontSize:12,fontWeight:'900'}}>×</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+              {feedbackPhotos.length < 3 && (
+                <TouchableOpacity style={{width:80,height:80,borderRadius:10,borderWidth:2,borderColor:colors.border,borderStyle:'dashed',alignItems:'center',justifyContent:'center',backgroundColor:colors.surfaceHighlight}} onPress={async () => {
+                  const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
+                  if (!result.canceled) setFeedbackPhotos(p => [...p, result.assets[0].uri]);
+                }}>
+                  <Text style={{fontSize:24,color:colors.textMuted}}>📷</Text>
+                  <Text style={{fontSize:9,color:colors.textMuted,fontWeight:'700'}}>Add</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
             <TouchableOpacity style={[styles.submitBtn, submitting && { opacity: 0.7 }]} onPress={submitFeedback} disabled={submitting}>
               {submitting ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.submitBtnText}>Submit Feedback</Text>}
             </TouchableOpacity>
@@ -371,14 +504,14 @@ export default function MyBookingsScreen() {
               <Text style={styles.ratingLabel}>Current Odometer (km)</Text>
               <TextInput style={[styles.feedbackInput, {minHeight:50, marginBottom:16}]} keyboardType="numeric" placeholder="e.g. 45200" value={odometer} onChangeText={setOdometer} />
 
-              <Text style={styles.ratingLabel}>Dashboard / Condition Photo</Text>
+              <Text style={styles.ratingLabel}>Dashboard / Odometer Photo</Text>
               <TouchableOpacity style={styles.photoUploadBtn} onPress={pickConditionPhoto}>
                 {photoUri ? (
                   <Image source={{ uri: photoUri }} style={{ width: '100%', height: 150, borderRadius: SIZES.radius }} resizeMode="cover" />
                 ) : (
                   <View style={{alignItems:'center'}}>
                     <Text style={{fontSize: 24, marginBottom:8}}>📸</Text>
-                    <Text style={{color:colors.textSecondary, fontWeight: '600'}}>Tap to upload condition photo</Text>
+                    <Text style={{color:colors.textSecondary, fontWeight: '600'}}>Tap to take photo of odometer</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -508,6 +641,9 @@ const getStyles = (C) => StyleSheet.create({
   modalTitle:      { fontSize: 24, fontWeight: '900', color: C.textPrimary, letterSpacing: -0.5, marginBottom: 8 },
   modalSub:        { color: C.textSecondary, marginBottom: 24, fontWeight: '600' },
   ratingLabel:     { fontSize: 13, fontWeight: '800', color: C.textSecondary, textTransform: 'uppercase', marginBottom: 12 },
+  detailValueText: { fontSize: 16, color: C.textPrimary, marginBottom: 16, fontWeight: '500' },
+  closeModalBtn:   { backgroundColor: C.primary, paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 10 },
+  closeModalBtnText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 16 },
   stars:           { flexDirection: 'row', gap: 8, marginBottom: 24 },
   star:            { fontSize: 36 },
   feedbackInput:   { borderWidth: 1, borderColor: C.border, borderRadius: SIZES.radius, padding: 16, fontSize: 15, color: C.textPrimary, minHeight: 120, textAlignVertical: 'top', marginBottom: 24, backgroundColor: C.background },

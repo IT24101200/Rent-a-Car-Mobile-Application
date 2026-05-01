@@ -6,6 +6,7 @@ const feedbackSchema = new mongoose.Schema({
   vehicle: { type: mongoose.Schema.Types.ObjectId, ref: 'Vehicle' }, // auto-populated at creation
   rating:  { type: Number, min: 1, max: 5, required: true },
   comment: { type: String, trim: true },
+  photos:  [{ type: String }], // Array of image URLs (max 3)
 
   // Owner reply
   ownerReply: {

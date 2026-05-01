@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Alert, RefreshControl, StatusBar, Modal, ScrollView, TextInput, Platform
+  ActivityIndicator, Alert, RefreshControl, StatusBar, Modal, ScrollView, TextInput, Platform, Image, Dimensions
 } from 'react-native';
-import api from '../../api/api';
+import api, { BASE_URL } from '../../api/api';
+
+const { width: W, height: H } = Dimensions.get('window');
 import { useTheme } from '../../context/ThemeContext';
 import { SIZES, SHADOWS } from '../../theme/theme';
 
@@ -17,6 +19,8 @@ export default function UserManagementScreen() {
   const [actionId, setActionId] = useState(null);
   const [staffModalUser, setStaffModalUser] = useState(null); // user object for staff assignment modal
   const [detailUser, setDetailUser] = useState(null); // user detail modal
+  const [kycReviewUser, setKycReviewUser] = useState(null); // user object for KYC doc review
+  const [kycDocIndex, setKycDocIndex] = useState(0); // index for proper navigation
   const [section, setSection] = useState('customers'); // 'customers' | 'staff'
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [newStaffName, setNewStaffName] = useState('');
@@ -253,18 +257,14 @@ export default function UserManagementScreen() {
                 {item.identity?.status === 'pending' && (
                   <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
                     <TouchableOpacity 
-                      style={[styles.btn, { backgroundColor: colors.success, flex: 1, alignItems: 'center' }]} 
-                      onPress={() => toggleKYC(item._id, 'verified')}
+                      style={[styles.btn, { backgroundColor: colors.primary, flex: 1, alignItems: 'center' }]} 
+                      onPress={() => {
+                        setKycDocIndex(0);
+                        setKycReviewUser(item);
+                      }}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.btnText}>Approve Docs</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      style={[styles.btn, { backgroundColor: colors.error, flex: 1, alignItems: 'center' }]} 
-                      onPress={() => toggleKYC(item._id, 'rejected')}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.btnText}>Reject</Text>
+                      <Text style={styles.btnText}>Review Documents</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -359,6 +359,71 @@ export default function UserManagementScreen() {
             </ScrollView>
             <TouchableOpacity style={styles.modalCancel} onPress={() => setDetailUser(null)}>
               <Text style={styles.modalCancelText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* KYC Review Modal - Full Screen with Zoom and Paging */}
+      <Modal visible={!!kycReviewUser} transparent animationType="fade" onRequestClose={() => setKycReviewUser(null)}>
+        <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.95)', padding: 0 }]}>
+          <View style={[styles.modalHeader, { position: 'absolute', top: 50, zIndex: 10, width: '100%', paddingHorizontal: 20, backgroundColor: 'transparent' }]}>
+            <View>
+              <Text style={[styles.modalTitle, { color: '#fff' }]}>KYC Verification</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.7)' }}>{kycReviewUser?.name}</Text>
+            </View>
+            <TouchableOpacity onPress={() => setKycReviewUser(null)} style={[styles.closeIconBtn, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+              <Text style={[styles.closeIconTxt, { color: '#fff' }]}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          {kycReviewUser && (
+            <FlatList
+              data={[
+                { key: 'dlFront', label: "Driver's License (Front)", path: kycReviewUser.identity?.dlFront },
+                { key: 'dlBack', label: "Driver's License (Back)", path: kycReviewUser.identity?.dlBack },
+                { key: 'nic', label: "National ID Card", path: kycReviewUser.identity?.nic },
+                { key: 'selfie', label: "Selfie", path: kycReviewUser.identity?.selfie }
+              ]}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item) => item.key}
+              onMomentumScrollEnd={(e) => setKycDocIndex(Math.round(e.nativeEvent.contentOffset.x / W))}
+              renderItem={({ item }) => (
+                <View style={{ width: W, height: H, justifyContent: 'center', alignItems: 'center' }}>
+                  <Text style={{ position: 'absolute', top: 120, color: '#fff', fontSize: 18, fontWeight: '800' }}>{item.label}</Text>
+                  {item.path ? (
+                    <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }} maximumZoomScale={4} minimumZoomScale={1} bouncesZoom>
+                      <Image source={{ uri: `${BASE_URL}${item.path}` }} style={{ width: W * 0.9, height: H * 0.6 }} resizeMode="contain" />
+                    </ScrollView>
+                  ) : (
+                    <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 18, fontStyle: 'italic' }}>Not provided</Text>
+                  )}
+                </View>
+              )}
+            />
+          )}
+
+          <View style={{ position: 'absolute', bottom: 120, width: '100%', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
+            {[0, 1, 2, 3].map(i => (
+              <View key={i} style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: i === kycDocIndex ? '#fff' : 'rgba(255,255,255,0.3)' }} />
+            ))}
+          </View>
+          <Text style={{ position: 'absolute', bottom: 95, width: '100%', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>Pinch to zoom • Swipe to browse</Text>
+
+          <View style={{ position: 'absolute', bottom: 20, width: '90%', alignSelf: 'center', flexDirection: 'row', gap: 12 }}>
+            <TouchableOpacity
+              style={[styles.modalBtn, { backgroundColor: colors.success, flex: 1 }]}
+              onPress={() => { toggleKYC(kycReviewUser._id, 'verified'); setKycReviewUser(null); }}
+            >
+              <Text style={styles.modalBtnText}>Approve All</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalBtn, { backgroundColor: colors.error, flex: 1 }]}
+              onPress={() => { toggleKYC(kycReviewUser._id, 'rejected'); setKycReviewUser(null); }}
+            >
+              <Text style={styles.modalBtnText}>Reject</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -574,4 +639,15 @@ const getStyles = (C) => StyleSheet.create({
   sectionTabActive: { backgroundColor: C.primary, borderColor: C.primary },
   sectionTabTxt: { fontSize: 14, fontWeight: '800', color: C.textSecondary },
   sectionTabTxtActive: { color: '#FFFFFF' },
+
+  kycDocLabel: { fontSize: 14, fontWeight: '800', color: C.textPrimary, marginBottom: 8 },
+  kycImgContainer: { width: '100%', height: 200, backgroundColor: C.surfaceHighlight, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: C.border },
+  kycImg: { width: '100%', height: '100%' },
+  kycNotProvided: { fontSize: 13, color: C.textMuted, fontStyle: 'italic', paddingVertical: 10, textAlign: 'center', backgroundColor: C.surfaceHighlight, borderRadius: 8 },
+
+  modalBtn: { padding: 16, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  modalBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 15 },
+  closeIconBtn: { padding: 8, borderRadius: 20, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  closeIconTxt: { fontWeight: '900', fontSize: 18 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
 });

@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput,
-  ActivityIndicator, Alert, RefreshControl, StatusBar, Modal, ScrollView, Platform
+  ActivityIndicator, Alert, RefreshControl, StatusBar, Modal, ScrollView, Platform, Image, Linking
 } from 'react-native';
-import api from '../../api/api';
+import api, { API_URL } from '../../api/api';
 import { useTheme } from '../../context/ThemeContext';
 import { SIZES, SHADOWS } from '../../theme/theme';
 
-const TABS = ['all','paid','pending','refunded'];
-const TAB_LABELS = { all:'All', paid:'💳 Paid', pending:'⏳ Pending Refund', refunded:'✅ Refunded' };
+const TABS = ['all','paid','transfers','pending','refunded'];
+const TAB_LABELS = { all:'All', paid:'💳 Paid', transfers:'🏦 Transfers', pending:'⏳ Pending Refund', refunded:'✅ Refunded' };
 
 export default function PaymentManagerScreen() {
   const { colors, isDark } = useTheme();
@@ -32,7 +32,8 @@ export default function PaymentManagerScreen() {
 
   const filtered = useMemo(() => {
     let d = bookings;
-    if (tab === 'paid') d = d.filter(b => b.refundStatus === 'none' && b.status !== 'cancelled');
+    if (tab === 'paid') d = d.filter(b => b.paymentStatus === 'paid' && b.refundStatus === 'none' && b.status !== 'cancelled');
+    else if (tab === 'transfers') d = d.filter(b => b.paymentMethod === 'bank_transfer' && b.paymentStatus === 'pending');
     else if (tab === 'pending') d = d.filter(b => b.refundStatus === 'pending');
     else if (tab === 'refunded') d = d.filter(b => b.refundStatus === 'issued');
     if (search.trim()) {
@@ -47,8 +48,9 @@ export default function PaymentManagerScreen() {
     const revenue = paid.reduce((s, b) => s + (b.totalPrice || 0), 0);
     const pendingRefunds = bookings.filter(b => b.refundStatus === 'pending').length;
     const issuedRefunds = bookings.filter(b => b.refundStatus === 'issued').length;
+    const pendingTransfers = bookings.filter(b => b.paymentMethod === 'bank_transfer' && b.paymentStatus === 'pending').length;
     const avg = paid.length ? Math.round(revenue / paid.length) : 0;
-    return { revenue, pendingRefunds, issuedRefunds, avg, total: bookings.length };
+    return { revenue, pendingRefunds, issuedRefunds, pendingTransfers, avg, total: bookings.length };
   }, [bookings]);
 
   const doRefund = async (id, newStatus) => {
@@ -64,12 +66,25 @@ export default function PaymentManagerScreen() {
     }}]);
   };
 
+  const verifyBankTransfer = async (id, action) => {
+    const label = action === 'approve' ? 'Approve Payment' : 'Reject Payment';
+    Alert.alert(label, `Are you sure you want to ${action} this bank transfer?`, [{text:'Cancel',style:'cancel'},{text:'Confirm',onPress:async()=>{
+      setActionId(id);
+      try {
+        const r = await api.patch(`/api/admin/payments/${id}/status`, { action });
+        setBookings(p => p.map(b => b._id === id ? r.data.booking : b));
+        if (detailItem?._id === id) setDetailItem(r.data.booking);
+      } catch(e) { Alert.alert('Error', e.response?.data?.message || 'Failed.'); }
+      finally { setActionId(null); }
+    }}]);
+  };
+
   const fmt = d => new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
   const fmtK = n => n >= 1000000 ? `${(n/1000000).toFixed(1)}M` : n >= 1000 ? `${(n/1000).toFixed(0)}K` : String(n);
 
   const getRefundColor = (rs) => ({ none: colors.success, pending: colors.warning, issued: colors.info }[rs] || colors.textMuted);
   const getRefundLabel = (rs) => ({ none: 'PAID', pending: 'REFUND PENDING', issued: 'REFUNDED' }[rs] || 'N/A');
-  const getMethodBadge = (m) => ({ cash: '💵 Cash', card: '💳 Card', online: '🌐 Online' }[m] || '💵 Cash');
+  const getMethodBadge = (m) => ({ cash: '💵 Cash', card: '💳 Card', online: '🌐 Online', bank_transfer: '🏦 Transfer' }[m] || '💵 Cash');
 
   if (loading) return <View style={S.center}><ActivityIndicator size="large" color={colors.primary}/></View>;
 
@@ -85,7 +100,11 @@ export default function PaymentManagerScreen() {
       <Text style={S.cardDates}>📅 {fmt(item.startDate)} → {fmt(item.endDate)}</Text>
       <View style={S.cardMeta}>
         <View style={[S.methodBadge,{backgroundColor:colors.surfaceHighlight}]}><Text style={S.methodTxt}>{getMethodBadge(item.paymentMethod)}</Text></View>
-        <View style={[S.refundBadge,{backgroundColor:getRefundColor(item.refundStatus)+'15'}]}><Text style={[S.refundTxt,{color:getRefundColor(item.refundStatus)}]}>{getRefundLabel(item.refundStatus)}</Text></View>
+        <View style={[S.refundBadge,{backgroundColor: item.paymentMethod==='bank_transfer'&&item.paymentStatus==='pending' ? colors.warning+'15' : getRefundColor(item.refundStatus)+'15'}]}>
+          <Text style={[S.refundTxt,{color:item.paymentMethod==='bank_transfer'&&item.paymentStatus==='pending' ? colors.warning : getRefundColor(item.refundStatus)}]}>
+            {item.paymentMethod==='bank_transfer'&&item.paymentStatus==='pending' ? 'PENDING VERIFICATION' : getRefundLabel(item.refundStatus)}
+          </Text>
+        </View>
         {item.status === 'cancelled' && <View style={[S.refundBadge,{backgroundColor:colors.error+'15'}]}><Text style={[S.refundTxt,{color:colors.error}]}>CANCELLED</Text></View>}
       </View>
       <View style={S.cardActions}>
@@ -125,9 +144,9 @@ export default function PaymentManagerScreen() {
               <Text style={S.subtitle}>{stats.total} transactions</Text>
               <View style={S.statsRow}>
                 <View style={S.statBox}><Text style={{fontSize:18}}> 💰</Text><Text style={[S.statVal,{color:'#4ADE80'}]}>Rs.{fmtK(stats.revenue)}</Text><Text style={S.statLbl}>Revenue</Text></View>
+                <View style={S.statBox}><Text style={{fontSize:18}}>🏦</Text><Text style={[S.statVal,{color:'#FB923C'}]}>{stats.pendingTransfers}</Text><Text style={S.statLbl}>Transfers</Text></View>
                 <View style={S.statBox}><Text style={{fontSize:18}}>⏳</Text><Text style={[S.statVal,{color:'#FBBF24'}]}>{stats.pendingRefunds}</Text><Text style={S.statLbl}>Pending</Text></View>
                 <View style={S.statBox}><Text style={{fontSize:18}}>✅</Text><Text style={[S.statVal,{color:'#38BDF8'}]}>{stats.issuedRefunds}</Text><Text style={S.statLbl}>Refunded</Text></View>
-                <View style={S.statBox}><Text style={{fontSize:18}}>📊</Text><Text style={[S.statVal,{color:'#fff'}]}>Rs.{fmtK(stats.avg)}</Text><Text style={S.statLbl}>Avg Value</Text></View>
               </View>
             </View>
             <TextInput style={S.searchBar} placeholder="🔍 Search by name, vehicle, ID..." placeholderTextColor={colors.textMuted} value={search} onChangeText={setSearch}/>
@@ -162,9 +181,19 @@ export default function PaymentManagerScreen() {
                 <Text style={S.dlLabel}>Payment Method</Text>
                 <Text style={S.dlValue}>{getMethodBadge(detailItem.paymentMethod)}</Text>
                 <Text style={S.dlLabel}>Payment Status</Text>
-                <View style={[S.refundBadge,{backgroundColor:getRefundColor(detailItem.refundStatus)+'15',alignSelf:'flex-start',marginTop:6}]}>
-                  <Text style={[S.refundTxt,{color:getRefundColor(detailItem.refundStatus)}]}>{getRefundLabel(detailItem.refundStatus)}</Text>
+                <View style={[S.refundBadge,{backgroundColor: detailItem.paymentMethod==='bank_transfer'&&detailItem.paymentStatus==='pending' ? colors.warning+'15' : getRefundColor(detailItem.refundStatus)+'15',alignSelf:'flex-start',marginTop:6}]}>
+                  <Text style={[S.refundTxt,{color:detailItem.paymentMethod==='bank_transfer'&&detailItem.paymentStatus==='pending' ? colors.warning : getRefundColor(detailItem.refundStatus)}]}>
+                    {detailItem.paymentMethod==='bank_transfer'&&detailItem.paymentStatus==='pending' ? 'PENDING VERIFICATION' : getRefundLabel(detailItem.refundStatus)}
+                  </Text>
                 </View>
+                {detailItem.paymentMethod === 'bank_transfer' && detailItem.paymentSlip && (
+                  <>
+                    <Text style={S.dlLabel}>Payment Slip</Text>
+                    <TouchableOpacity onPress={() => Linking.openURL(`${API_URL}${detailItem.paymentSlip}`)}>
+                      <Image source={{ uri: `${API_URL}${detailItem.paymentSlip}` }} style={{ width: '100%', height: 200, borderRadius: 12, marginTop: 8 }} resizeMode="cover" />
+                    </TouchableOpacity>
+                  </>
+                )}
                 <Text style={S.dlLabel}>Booking Status</Text>
                 <Text style={S.dlValue}>{detailItem.status?.toUpperCase()}</Text>
                 {detailItem.cancellationReason && (<><Text style={S.dlLabel}>Cancellation Reason</Text><Text style={[S.dlValue,{color:colors.error}]}>{detailItem.cancellationReason}</Text></>)}
@@ -174,14 +203,23 @@ export default function PaymentManagerScreen() {
                 <Text style={S.dlValue}>{new Date(detailItem.createdAt).toLocaleString()}</Text>
 
                 <View style={{flexDirection:'row',gap:10,marginTop:20}}>
-                  {detailItem.refundStatus === 'pending' && (
-                    <TouchableOpacity style={[S.saveBtn,{flex:1,backgroundColor:colors.success}]} onPress={()=>doRefund(detailItem._id,'issued')}><Text style={S.saveBtnTxt}>✅ Issue Refund</Text></TouchableOpacity>
-                  )}
-                  {detailItem.refundStatus === 'issued' && (
-                    <TouchableOpacity style={[S.saveBtn,{flex:1,backgroundColor:colors.warning}]} onPress={()=>doRefund(detailItem._id,'none')}><Text style={S.saveBtnTxt}>↩️ Revoke Refund</Text></TouchableOpacity>
-                  )}
-                  {detailItem.status === 'cancelled' && detailItem.refundStatus === 'none' && (
-                    <TouchableOpacity style={[S.saveBtn,{flex:1,backgroundColor:colors.info}]} onPress={()=>doRefund(detailItem._id,'pending')}><Text style={S.saveBtnTxt}>⏳ Mark Refund Pending</Text></TouchableOpacity>
+                  {detailItem.paymentMethod === 'bank_transfer' && detailItem.paymentStatus === 'pending' ? (
+                    <>
+                      <TouchableOpacity style={[S.saveBtn,{flex:1,backgroundColor:colors.success}]} onPress={()=>verifyBankTransfer(detailItem._id,'approve')}><Text style={S.saveBtnTxt}>✅ Approve</Text></TouchableOpacity>
+                      <TouchableOpacity style={[S.saveBtn,{flex:1,backgroundColor:colors.error}]} onPress={()=>verifyBankTransfer(detailItem._id,'reject')}><Text style={S.saveBtnTxt}>❌ Reject</Text></TouchableOpacity>
+                    </>
+                  ) : (
+                    <>
+                      {detailItem.refundStatus === 'pending' && (
+                        <TouchableOpacity style={[S.saveBtn,{flex:1,backgroundColor:colors.success}]} onPress={()=>doRefund(detailItem._id,'issued')}><Text style={S.saveBtnTxt}>✅ Issue Refund</Text></TouchableOpacity>
+                      )}
+                      {detailItem.refundStatus === 'issued' && (
+                        <TouchableOpacity style={[S.saveBtn,{flex:1,backgroundColor:colors.warning}]} onPress={()=>doRefund(detailItem._id,'none')}><Text style={S.saveBtnTxt}>↩️ Revoke Refund</Text></TouchableOpacity>
+                      )}
+                      {detailItem.status === 'cancelled' && detailItem.refundStatus === 'none' && (
+                        <TouchableOpacity style={[S.saveBtn,{flex:1,backgroundColor:colors.info}]} onPress={()=>doRefund(detailItem._id,'pending')}><Text style={S.saveBtnTxt}>⏳ Mark Refund Pending</Text></TouchableOpacity>
+                      )}
+                    </>
                   )}
                 </View>
               </>)}

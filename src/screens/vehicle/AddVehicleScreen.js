@@ -45,7 +45,7 @@ export default function AddVehicleScreen({ navigation }) {
       return Alert.alert('Permission needed', 'Please grant photo library access.');
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: fieldKey ? [4, 3] : [16, 9],
       quality: 0.8,
