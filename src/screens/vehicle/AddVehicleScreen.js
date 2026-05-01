@@ -104,7 +104,7 @@ export default function AddVehicleScreen({ navigation }) {
       });
 
       Alert.alert('🎉 Success!', 'Vehicle submitted for admin approval!', [
-        { text: 'Go to My Fleet', onPress: () => navigation.navigate('MyFleet') }
+        { text: 'Go to My Fleet', onPress: () => navigation.goBack() }
       ]);
 
       setForm({

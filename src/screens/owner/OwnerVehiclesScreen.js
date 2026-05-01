@@ -20,6 +20,7 @@ export default function OwnerVehiclesScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionId, setActionId] = useState(null);
+  const [detailItem, setDetailItem] = useState(null);
 
   // Edit Modal State
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -51,6 +52,19 @@ export default function OwnerVehiclesScreen({ navigation }) {
       setVehicles(prev => prev.map(v => v._id === vehicle._id ? { ...v, isAvailable: res.data.isAvailable } : v));
     } catch {
       Alert.alert('Error', 'Failed to toggle availability.');
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const resolveProposal = async (id, action) => {
+    setActionId('resolve');
+    try {
+      const res = await api.patch(`/api/owner/vehicles/${id}/price-proposal`, { action });
+      setVehicles(prev => prev.map(v => v._id === id ? res.data.vehicle : v));
+      Alert.alert('Success', res.data.message);
+    } catch (e) {
+      Alert.alert('Error', e.response?.data?.message || 'Failed to resolve proposal.');
     } finally {
       setActionId(null);
     }
@@ -168,6 +182,11 @@ export default function OwnerVehiclesScreen({ navigation }) {
       return Alert.alert('Error', 'Missing required fields.');
     }
 
+    const isPriceIncrease = Number(editForm.pricePerDay) > editingVehicle.pricePerDay;
+    if (isPriceIncrease && !newDocs.priceJustification && !editingVehicle.documents?.find(d => d.docType === 'priceJustification')) {
+      return Alert.alert('Error', 'Price Justification document is required because you are increasing the daily price.');
+    }
+
     setActionId(editingVehicle._id);
     try {
       const formData = new FormData();
@@ -257,6 +276,21 @@ export default function OwnerVehiclesScreen({ navigation }) {
               <Text style={styles.detail}>{item.type || 'Vehicle'} • {item.transmission || 'N/A'} • {item.fuelType || 'N/A'} • 💺 {item.seats || 'N/A'}</Text>
               <Text style={[styles.detail, {fontWeight: '800', color: C.success, fontSize: 16, marginTop: 4}]}>Rs. {item.pricePerDay} / day</Text>
 
+              {item.priceProposal && item.priceProposal.status === 'pending' && item.priceProposal.proposedBy === 'admin' && (
+                <View style={{ backgroundColor: C.warning+'15', padding: 12, borderRadius: 8, marginTop: 8, borderWidth: 1, borderColor: C.warning }}>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: C.warning, marginBottom: 4 }}>⚠️ Admin Price Decrease Proposal</Text>
+                  <Text style={{ fontSize: 13, color: C.textPrimary, marginBottom: 8 }}>Fleet Manager proposed decreasing price to <Text style={{fontWeight:'bold'}}>Rs. {item.priceProposal.proposedPrice}</Text></Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity style={{ flex: 1, backgroundColor: C.success, padding: 8, borderRadius: 6, alignItems: 'center' }} onPress={() => resolveProposal(item._id, 'approve')}>
+                      <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>Accept</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={{ flex: 1, backgroundColor: C.error, padding: 8, borderRadius: 6, alignItems: 'center' }} onPress={() => resolveProposal(item._id, 'reject')}>
+                      <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>Reject</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
               <View style={styles.actionRow}>
                 {item.validationStatus === 'accepted' && (
                   <TouchableOpacity
@@ -267,6 +301,14 @@ export default function OwnerVehiclesScreen({ navigation }) {
                     <Text style={styles.btnText}>{item.isAvailable ? 'Hide' : 'Show'}</Text>
                   </TouchableOpacity>
                 )}
+
+                <TouchableOpacity
+                  style={[styles.btn, styles.btnEdit, actionId === item._id && { opacity: 0.5 }, { flex: 1.5, backgroundColor: C.primary+'15' }]}
+                  onPress={() => setDetailItem(item)}
+                  disabled={actionId === item._id}
+                >
+                  <Text style={[styles.btnText, { color: C.primary }]}>🔍 View Details</Text>
+                </TouchableOpacity>
 
                 <TouchableOpacity
                   style={[styles.btn, styles.btnEdit, actionId === item._id && { opacity: 0.5 }]}
@@ -354,13 +396,20 @@ export default function OwnerVehiclesScreen({ navigation }) {
                   />
                 </View>
                 <View style={{flex: 1}}>
-                  <Text style={styles.label}>Price / Day</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={editForm.pricePerDay}
-                    onChangeText={t => setEditForm(prev => ({...prev, pricePerDay: t}))}
-                    keyboardType="numeric"
-                  />
+                  <Text style={styles.label}>Price per day (Rs.)</Text>
+                  {editingVehicle?.priceProposal && editingVehicle.priceProposal.status === 'pending' && editingVehicle.priceProposal.proposedBy === 'owner' ? (
+                    <View style={{ backgroundColor: C.surfaceHighlight, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: C.border }}>
+                      <Text style={{ color: C.warning, fontWeight: 'bold', marginBottom: 4 }}>⏳ Price Increase Pending Admin Approval</Text>
+                      <Text style={{ color: C.textSecondary, fontSize: 13 }}>Proposed Price: Rs. {editingVehicle.priceProposal.proposedPrice}</Text>
+                    </View>
+                  ) : (
+                    <TextInput
+                      style={styles.input}
+                      keyboardType="numeric"
+                      value={String(editForm.pricePerDay)}
+                      onChangeText={t => setEditForm(prev => ({...prev, pricePerDay: t}))}
+                    />
+                  )}
                 </View>
               </View>
 
@@ -392,13 +441,19 @@ export default function OwnerVehiclesScreen({ navigation }) {
                   <Text style={styles.editDocVaultTitle}>📁 Document Vault</Text>
                   <Text style={styles.editDocVaultSub}>Tap any document to replace it</Text>
                 </View>
-                {[
-                  { key: 'revenueLicense', label: 'Revenue License', icon: '🪪', required: true },
-                  { key: 'insurance',      label: 'Insurance Cert.',  icon: '🛡️', required: true },
-                  { key: 'registration',   label: 'Registration',     icon: '📝', required: true },
-                  { key: 'fitness',        label: 'Fitness Cert.',    icon: '🔧', required: false },
-                ].map(doc => {
-                  const existing = editingVehicle?.documents?.find(d => d.docType === doc.key);
+                {(() => {
+                  const isPriceIncrease = Number(editForm.pricePerDay) > editingVehicle?.pricePerDay;
+                  const docsToRender = [
+                    { key: 'revenueLicense', label: 'Revenue License', icon: '🪪', required: true },
+                    { key: 'insurance',      label: 'Insurance Cert.',  icon: '🛡️', required: true },
+                    { key: 'registration',   label: 'Registration',     icon: '📝', required: true },
+                    { key: 'fitness',        label: 'Fitness Cert.',    icon: '🔧', required: false },
+                  ];
+                  if (isPriceIncrease) {
+                    docsToRender.push({ key: 'priceJustification', label: 'Price Increase Justification', icon: '📈', required: true });
+                  }
+                  return docsToRender.map(doc => {
+                    const existing = editingVehicle?.documents?.find(d => d.docType === doc.key);
                   const newFile  = newDocs[doc.key];
                   return (
                     <TouchableOpacity
@@ -438,7 +493,8 @@ export default function OwnerVehiclesScreen({ navigation }) {
                       )}
                     </TouchableOpacity>
                   );
-                })}
+                  });
+                })()}
               </View>
 
               <View style={styles.modalActions}>
@@ -452,6 +508,88 @@ export default function OwnerVehiclesScreen({ navigation }) {
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── Detail Modal ─────────────────────────────── */}
+      <Modal visible={!!detailItem} transparent animationType="slide" onRequestClose={() => setDetailItem(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalTitle}>🚗 Vehicle Details</Text>
+              {detailItem && (
+                <>
+                  <View style={[styles.statusBadge, detailItem.validationStatus === 'accepted' ? { backgroundColor: C.successBg } : detailItem.validationStatus === 'rejected' ? { backgroundColor: C.errorBg } : { backgroundColor: C.warningBg }, { alignSelf: 'flex-start', marginVertical: 12 }]}>
+                    {getStatusBadge(detailItem.validationStatus)}
+                  </View>
+                  {detailItem.imageUrl && <Image source={{uri: BASE_URL + detailItem.imageUrl}} style={{width: '100%', height: 180, borderRadius: 14, marginBottom: 16}} resizeMode="cover" />}
+                  
+                  {detailItem.validationStatus === 'rejected' && detailItem.rejectionReason && (
+                    <View style={{ backgroundColor: C.error+'15', padding: 12, borderRadius: 8, marginBottom: 16, borderWidth: 1, borderColor: C.error }}>
+                      <Text style={{ fontWeight: 'bold', color: C.error, marginBottom: 4 }}>❌ Rejection Reason</Text>
+                      <Text style={{ color: C.textPrimary }}>{detailItem.rejectionReason}</Text>
+                    </View>
+                  )}
+
+                  {detailItem.validationNote && (
+                    <View style={{ backgroundColor: C.primary+'15', padding: 12, borderRadius: 8, marginBottom: 16, borderWidth: 1, borderColor: C.primary }}>
+                      <Text style={{ fontWeight: 'bold', color: C.primary, marginBottom: 4 }}>ℹ️ Admin Note</Text>
+                      <Text style={{ color: C.textPrimary }}>{detailItem.validationNote}</Text>
+                    </View>
+                  )}
+
+                  <Text style={styles.label}>Make & Model</Text>
+                  <Text style={{ fontSize: 20, fontWeight: '900', color: C.textPrimary, marginBottom: 12 }}>{detailItem.makeAndModel}</Text>
+
+                  <Text style={styles.label}>License Plate</Text>
+                  <Text style={{ fontSize: 16, color: C.textPrimary, marginBottom: 12 }}>{detailItem.licensePlate}</Text>
+
+                  <Text style={styles.label}>Specifications</Text>
+                  <Text style={{ fontSize: 14, color: C.textPrimary, marginBottom: 12 }}>{detailItem.type||'N/A'} • {detailItem.transmission||'N/A'} • {detailItem.fuelType||'N/A'} • {detailItem.seats||'N/A'} seats • {detailItem.year||'N/A'}</Text>
+
+                  <Text style={styles.label}>Price Per Day</Text>
+                  <Text style={{ color: C.success, fontWeight: '900', fontSize: 20, marginBottom: 12 }}>Rs. {(detailItem.pricePerDay||0).toLocaleString()}</Text>
+
+                  {detailItem.priceProposal && detailItem.priceProposal.status === 'pending' && (
+                    <View style={{ backgroundColor: C.warning+'15', padding: 12, borderRadius: 8, marginBottom: 16, borderWidth: 1, borderColor: C.warning }}>
+                      <Text style={{ fontSize: 14, fontWeight: '800', color: C.warning, marginBottom: 4 }}>⚠️ Pending Price Proposal</Text>
+                      <Text style={{ fontSize: 13, color: C.textPrimary }}>Proposed by: {detailItem.priceProposal.proposedBy === 'admin' ? 'Fleet Manager' : 'You'}</Text>
+                      <Text style={{ fontSize: 13, color: C.textPrimary }}>Proposed Price: <Text style={{fontWeight:'bold'}}>Rs. {detailItem.priceProposal.proposedPrice}</Text></Text>
+                    </View>
+                  )}
+
+                  <Text style={styles.label}>Availability</Text>
+                  <Text style={{ color: detailItem.isAvailable!==false?C.success:C.error, fontWeight: '800', marginBottom: 12 }}>{detailItem.isAvailable!==false?'✅ Available':'❌ Unavailable'}</Text>
+
+                  {detailItem.features && (
+                    <>
+                      <Text style={styles.label}>Features</Text>
+                      <Text style={{ color: C.textPrimary, marginBottom: 12 }}>{detailItem.features}</Text>
+                    </>
+                  )}
+
+                  {detailItem.documents?.length > 0 && (
+                    <>
+                      <Text style={styles.label}>Uploaded Documents ({detailItem.documents.length})</Text>
+                      {detailItem.documents.map((d,i) => (
+                        <Text key={i} style={{ color: C.textPrimary, marginBottom: 4 }}>📄 {d.docType === 'priceJustification' ? 'Price Justification' : d.docType}</Text>
+                      ))}
+                      <View style={{ marginBottom: 12 }} />
+                    </>
+                  )}
+                  
+                  <Text style={styles.label}>Added</Text>
+                  <Text style={{ color: C.textPrimary, marginBottom: 20 }}>{new Date(detailItem.createdAt).toLocaleDateString()}</Text>
+                </>
+              )}
+            </ScrollView>
+            <TouchableOpacity 
+              style={{ backgroundColor: C.primary, paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 16 }} 
+              onPress={() => setDetailItem(null)}
+            >
+              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>Close Details</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       {/* ── FAB to Add Vehicle ── */}

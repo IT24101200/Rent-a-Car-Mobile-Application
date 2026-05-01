@@ -119,6 +119,11 @@ export default function VehicleDetailScreen({ route, navigation }) {
             <Text style={styles.priceText}>Rs. {vehicle.pricePerDay.toLocaleString()}</Text>
             <Text style={styles.priceSub}> / day</Text>
           </View>
+          {vehicle.priceUpdatedAt && (
+            <Text style={{ fontSize: 11, color: colors.textMuted, fontWeight: '600', marginTop: 4, fontStyle: 'italic' }}>
+              ℹ️ Price last updated on {new Date(vehicle.priceUpdatedAt).toLocaleDateString()}
+            </Text>
+          )}
         </View>
 
         {/* ── Specs Grid ────────────────────────────────────────── */}

@@ -5,6 +5,7 @@ const vehicleSchema = new mongoose.Schema({
   makeAndModel:     { type: String, required: true },
   licensePlate:     { type: String, required: true, unique: true },
   pricePerDay:      { type: Number, required: true },
+  priceUpdatedAt:   { type: Date, default: Date.now },
   
   // New Specifications (Optional for backward compatibility)
   type:             { type: String, enum: ['Sedan', 'SUV', 'Hatchback', 'Luxury', 'Van'] },
@@ -15,7 +16,7 @@ const vehicleSchema = new mongoose.Schema({
   features:         { type: String }, // e.g., "Bluetooth, Sunroof, AC"
   imageUrl:         { type: String }, // relative path like /uploads/filename.jpg
   documents: [{
-    docType:    { type: String, enum: ['revenueLicense', 'insurance', 'registration', 'fitness'] },
+    docType:    { type: String, enum: ['revenueLicense', 'insurance', 'registration', 'fitness', 'priceJustification'] },
     fileUrl:    { type: String },
     uploadedAt: { type: Date, default: Date.now }
   }],
@@ -29,7 +30,16 @@ const vehicleSchema = new mongoose.Schema({
   rejectionReason:  { type: String, trim: true },
   validationNote:   { type: String, trim: true },
   validatedAt:      { type: Date },
-  validatedBy:      { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  validatedBy:      { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+
+  // Price Negotiation
+  priceProposal: {
+    proposedPrice: { type: Number },
+    proposedBy: { type: String, enum: ['owner', 'admin'] },
+    justificationDoc: { type: String },
+    status: { type: String, enum: ['pending', 'approved', 'rejected'] },
+    createdAt: { type: Date, default: Date.now }
+  }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Vehicle', vehicleSchema);

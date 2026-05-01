@@ -434,6 +434,16 @@ export default function MyBookingsScreen() {
                 <Text style={[styles.detailValueText, { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 12 }]}>{detailModal._id}</Text>
                 <View style={{ height: 20 }} />
               </ScrollView>
+              <TouchableOpacity 
+                style={[styles.closeModalBtn, { backgroundColor: colors.primary+'15', marginBottom: 12, borderWidth: 1, borderColor: colors.primary+'40' }]} 
+                onPress={() => {
+                  const v = detailModal.vehicle;
+                  setDetailModal(null);
+                  if (v) navigation.navigate('VehicleDetail', { vehicle: v });
+                }}
+              >
+                <Text style={[styles.closeModalBtnText, { color: colors.primary }]}>🔍 View Full Vehicle Details</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={styles.closeModalBtn} onPress={() => setDetailModal(null)}>
                 <Text style={styles.closeModalBtnText}>Close</Text>
               </TouchableOpacity>

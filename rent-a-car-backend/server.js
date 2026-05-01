@@ -36,13 +36,14 @@ const fileFilter = (req, file, cb) => {
 };
 const upload = multer({ storage, fileFilter, limits: { fileSize: 5 * 1024 * 1024 } }); // max 5MB
 
-// Multi-field upload handler: vehicle image + 4 document types
+// Multi-field upload handler: vehicle image + 5 document types
 const uploadVehicleFiles = upload.fields([
   { name: 'image',          maxCount: 1 },
   { name: 'revenueLicense', maxCount: 1 },
   { name: 'insurance',      maxCount: 1 },
   { name: 'registration',   maxCount: 1 },
   { name: 'fitness',        maxCount: 1 },
+  { name: 'priceJustification', maxCount: 1 },
 ]);
 
 // Multi-field upload handler for KYC Verification
@@ -510,14 +511,20 @@ app.put('/api/owner/vehicles/:id', authMiddleware, ownerMiddleware, uploadVehicl
 
     const files = req.files || {};
 
+    const isPriceIncrease = Number(pricePerDay) > existingVehicle.pricePerDay;
+    if (isPriceIncrease && !(files.priceJustification && files.priceJustification[0])) {
+      return res.status(400).json({ message: 'A price justification document is required for price increases.' });
+    }
+
     // ── Two-tier edit logic ──
-    // Critical changes (name, plate, photo, documents) reset status to pending
-    // Safe changes (price, features, seats, etc.) keep current status
+    // Critical changes (name, plate, photo, documents, price increase) reset status to pending
+    // Safe changes (price decrease, features, seats, etc.) keep current status
     const criticalChanged =
       makeAndModel !== existingVehicle.makeAndModel ||
       licensePlate.toUpperCase() !== existingVehicle.licensePlate ||
+      isPriceIncrease ||
       (files.image && files.image[0]) ||
-      Object.keys(files).some(k => ['revenueLicense', 'insurance', 'registration', 'fitness'].includes(k));
+      Object.keys(files).some(k => ['revenueLicense', 'insurance', 'registration', 'fitness', 'priceJustification'].includes(k));
 
     // Replace vehicle photo if new one uploaded
     if (files.image && files.image[0]) {
@@ -533,7 +540,20 @@ app.put('/api/owner/vehicles/:id', authMiddleware, ownerMiddleware, uploadVehicl
 
     existingVehicle.makeAndModel = makeAndModel;
     existingVehicle.licensePlate = licensePlate.toUpperCase();
-    existingVehicle.pricePerDay = Number(pricePerDay);
+    
+    // Handle Price Proposal
+    if (isPriceIncrease) {
+      existingVehicle.priceProposal = {
+        proposedPrice: Number(pricePerDay),
+        proposedBy: 'owner',
+        justificationDoc: `/uploads/${files.priceJustification[0].filename}`,
+        status: 'pending',
+        createdAt: Date.now()
+      };
+    } else if (Number(pricePerDay) !== existingVehicle.pricePerDay) {
+      existingVehicle.priceUpdatedAt = Date.now();
+      existingVehicle.pricePerDay = Number(pricePerDay);
+    }
     if (type !== undefined) existingVehicle.type = type;
     if (transmission !== undefined) existingVehicle.transmission = transmission;
     if (fuelType !== undefined) existingVehicle.fuelType = fuelType;
@@ -542,7 +562,7 @@ app.put('/api/owner/vehicles/:id', authMiddleware, ownerMiddleware, uploadVehicl
     if (features !== undefined) existingVehicle.features = features;
 
     // Only reset status if critical fields changed
-    if (criticalChanged) {
+    if (criticalChanged && !isPriceIncrease) {
       existingVehicle.validationStatus = 'pending';
       existingVehicle.isAvailable = false;
     }
@@ -551,6 +571,35 @@ app.put('/api/owner/vehicles/:id', authMiddleware, ownerMiddleware, uploadVehicl
     res.json(existingVehicle);
   } catch (err) {
     res.status(500).json({ message: 'Error editing vehicle.', error: err.message });
+  }
+});
+
+// PATCH /api/owner/vehicles/:id/price-proposal — Owner resolves Admin's price drop
+app.patch('/api/owner/vehicles/:id/price-proposal', authMiddleware, ownerMiddleware, async (req, res) => {
+  try {
+    const { action } = req.body; // 'approve' or 'reject'
+    const vehicle = await Vehicle.findOne({ _id: req.params.id, owner: req.user.id });
+    if (!vehicle) return res.status(404).json({ message: 'Vehicle not found.' });
+    if (!vehicle.priceProposal || vehicle.priceProposal.status !== 'pending' || vehicle.priceProposal.proposedBy !== 'admin') {
+      return res.status(400).json({ message: 'No pending price proposal from admin found.' });
+    }
+
+    if (action === 'approve') {
+      vehicle.pricePerDay = vehicle.priceProposal.proposedPrice;
+      vehicle.priceUpdatedAt = Date.now();
+      vehicle.priceProposal.status = 'approved';
+    } else {
+      vehicle.priceProposal.status = 'rejected';
+    }
+    await vehicle.save();
+    
+    // Clear it
+    vehicle.priceProposal = undefined;
+    await vehicle.save();
+
+    res.json({ message: `Price proposal ${action}d.`, vehicle });
+  } catch (err) {
+    res.status(500).json({ message: 'Error resolving proposal.', error: err.message });
   }
 });
 
@@ -1374,22 +1423,70 @@ app.get('/api/admin/vehicles', authMiddleware, adminOrStaffMiddleware(['fleet', 
   }
 });
 
-// PATCH /api/admin/vehicles/:id — Edit vehicle details
-app.patch('/api/admin/vehicles/:id', authMiddleware, adminOrStaffMiddleware(['fleet']), async (req, res) => {
+// PATCH /api/admin/vehicles/:id — Edit vehicle details (multipart/form-data)
+app.patch('/api/admin/vehicles/:id', authMiddleware, adminOrStaffMiddleware(['fleet']), uploadVehicleFiles, async (req, res) => {
   try {
     const { pricePerDay, features, isAvailable } = req.body;
     const vehicle = await Vehicle.findById(req.params.id);
     if (!vehicle) return res.status(404).json({ message: 'Vehicle not found.' });
 
-    if (pricePerDay !== undefined) vehicle.pricePerDay = pricePerDay;
+    const files = req.files || {};
+    const newPrice = pricePerDay ? Number(pricePerDay) : vehicle.pricePerDay;
+    const isPriceDecrease = newPrice < vehicle.pricePerDay;
+
+    if (isPriceDecrease) {
+      if (!(files.priceJustification && files.priceJustification[0])) {
+        return res.status(400).json({ message: 'A justification document is required to decrease the vehicle price.' });
+      }
+      vehicle.priceProposal = {
+        proposedPrice: newPrice,
+        proposedBy: 'admin',
+        justificationDoc: `/uploads/${files.priceJustification[0].filename}`,
+        status: 'pending',
+        createdAt: Date.now()
+      };
+    } else if (newPrice !== vehicle.pricePerDay) {
+      vehicle.pricePerDay = newPrice;
+      vehicle.priceUpdatedAt = Date.now();
+    }
+
     if (features !== undefined) vehicle.features = features;
-    if (isAvailable !== undefined) vehicle.isAvailable = isAvailable;
+    if (isAvailable !== undefined) vehicle.isAvailable = isAvailable === 'true' || isAvailable === true;
     await vehicle.save();
 
     const populated = await Vehicle.findById(vehicle._id).populate('owner', 'name email');
-    res.json({ message: 'Vehicle updated.', vehicle: populated });
+    res.json({ message: isPriceDecrease ? 'Price decrease proposed to owner.' : 'Vehicle updated.', vehicle: populated });
   } catch (err) {
     res.status(500).json({ message: 'Error updating vehicle.', error: err.message });
+  }
+});
+
+// PATCH /api/admin/vehicles/:id/price-proposal — Admin resolves Owner's price hike
+app.patch('/api/admin/vehicles/:id/price-proposal', authMiddleware, adminOrStaffMiddleware(['fleet']), async (req, res) => {
+  try {
+    const { action } = req.body; // 'approve' or 'reject'
+    const vehicle = await Vehicle.findById(req.params.id);
+    if (!vehicle) return res.status(404).json({ message: 'Vehicle not found.' });
+    if (!vehicle.priceProposal || vehicle.priceProposal.status !== 'pending' || vehicle.priceProposal.proposedBy !== 'owner') {
+      return res.status(400).json({ message: 'No pending price proposal from owner found.' });
+    }
+
+    if (action === 'approve') {
+      vehicle.pricePerDay = vehicle.priceProposal.proposedPrice;
+      vehicle.priceUpdatedAt = Date.now();
+      vehicle.priceProposal.status = 'approved';
+    } else {
+      vehicle.priceProposal.status = 'rejected';
+    }
+    await vehicle.save();
+    
+    // Clear it after resolution so it doesn't stay stuck
+    vehicle.priceProposal = undefined;
+    await vehicle.save();
+
+    res.json({ message: `Price proposal ${action}d.`, vehicle });
+  } catch (err) {
+    res.status(500).json({ message: 'Error resolving proposal.', error: err.message });
   }
 });
 

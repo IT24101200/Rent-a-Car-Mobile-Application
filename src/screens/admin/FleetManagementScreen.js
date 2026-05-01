@@ -3,6 +3,7 @@ import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput,
   ActivityIndicator, Alert, RefreshControl, StatusBar, Modal, ScrollView, Platform, Switch, Image
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import api, { BASE_URL } from '../../api/api';
 import { useTheme } from '../../context/ThemeContext';
 import { SIZES, SHADOWS } from '../../theme/theme';
@@ -25,6 +26,7 @@ export default function FleetManagementScreen() {
   const [editPrice, setEditPrice] = useState('');
   const [editFeatures, setEditFeatures] = useState('');
   const [editAvail, setEditAvail] = useState(true);
+  const [editDoc, setEditDoc] = useState(null);
 
   const fetchFleet = useCallback(async (r = false) => {
     r ? setRefreshing(true) : setLoading(true);
@@ -67,14 +69,46 @@ export default function FleetManagementScreen() {
 
   const doEdit = async () => {
     if (!editItem) return;
+    const newPrice = parseFloat(editPrice) || editItem.pricePerDay;
+    if (newPrice < editItem.pricePerDay && !editDoc) {
+      return Alert.alert('Required', 'You must upload a justification document to decrease the price.');
+    }
     setActionId('edit');
     try {
-      const body = { pricePerDay: parseFloat(editPrice) || editItem.pricePerDay, features: editFeatures, isAvailable: editAvail };
-      const r = await api.patch(`/api/admin/vehicles/${editItem._id}`, body);
+      const formData = new FormData();
+      formData.append('pricePerDay', newPrice);
+      formData.append('features', editFeatures);
+      formData.append('isAvailable', editAvail);
+      if (newPrice < editItem.pricePerDay && editDoc) {
+        formData.append('priceJustification', { uri: editDoc.uri, name: editDoc.name, type: editDoc.type });
+      }
+      const r = await api.patch(`/api/admin/vehicles/${editItem._id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' }});
       setVehicles(p => p.map(v => v._id === editItem._id ? r.data.vehicle : v));
       Alert.alert('Success', r.data.message); setEditItem(null);
     } catch(e) { Alert.alert('Error', e.response?.data?.message || 'Failed.'); }
     finally { setActionId(null); }
+  };
+
+  const resolveProposal = async (id, action) => {
+    setActionId('resolve');
+    try {
+      const r = await api.patch(`/api/admin/vehicles/${id}/price-proposal`, { action });
+      setVehicles(p => p.map(v => v._id === id ? r.data.vehicle : v));
+      setDetailItem(r.data.vehicle);
+      Alert.alert('Success', r.data.message);
+    } catch(e) { Alert.alert('Error', e.response?.data?.message || 'Failed to resolve proposal.'); }
+    finally { setActionId(null); }
+  };
+
+  const pickDoc = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') return Alert.alert('Permission needed', 'Please grant photo library access.');
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+    if (!result.canceled && result.assets.length > 0) {
+      const asset = result.assets[0];
+      const ext = asset.uri.split('.').pop();
+      setEditDoc({ uri: asset.uri, name: `justification.${ext}`, type: `image/${ext}` });
+    }
   };
 
   const doDelete = id => Alert.alert('Delete Vehicle','Permanently remove this vehicle and related records?',[{text:'Cancel',style:'cancel'},{text:'Delete',style:'destructive',onPress:async()=>{
@@ -84,7 +118,7 @@ export default function FleetManagementScreen() {
     finally { setActionId(null); }
   }}]);
 
-  const openEdit = v => { setEditItem(v); setEditPrice(String(v.pricePerDay||'')); setEditFeatures(v.features||''); setEditAvail(v.isAvailable!==false); };
+  const openEdit = v => { setEditItem(v); setEditPrice(String(v.pricePerDay||'')); setEditFeatures(v.features||''); setEditAvail(v.isAvailable!==false); setEditDoc(null); };
 
   if (loading) return <View style={S.center}><ActivityIndicator size="large" color={colors.primary}/></View>;
 
@@ -166,6 +200,21 @@ export default function FleetManagementScreen() {
             <ScrollView>
               <Text style={S.modalTitle}>🚗 Vehicle Details</Text>
               {detailItem && (<>
+                {detailItem.priceProposal && detailItem.priceProposal.status === 'pending' && detailItem.priceProposal.proposedBy === 'owner' && (
+                  <View style={{ backgroundColor: colors.warning+'15', padding: 16, borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: colors.warning }}>
+                    <Text style={{ fontSize: 16, fontWeight: '800', color: colors.warning, marginBottom: 8 }}>⚠️ Price Increase Proposal</Text>
+                    <Text style={{ fontSize: 14, color: colors.textPrimary, marginBottom: 4 }}>Owner wants to increase price to <Text style={{fontWeight:'bold'}}>Rs. {detailItem.priceProposal.proposedPrice}</Text></Text>
+                    {detailItem.priceProposal.justificationDoc && <Text style={{ fontSize: 14, color: colors.primary, fontWeight: '700', marginBottom: 12 }}>📄 Justification Uploaded</Text>}
+                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                      <TouchableOpacity style={{ flex: 1, backgroundColor: colors.success, padding: 10, borderRadius: 8, alignItems: 'center' }} onPress={() => resolveProposal(detailItem._id, 'approve')}>
+                        <Text style={{ color: '#fff', fontWeight: 'bold' }}>Approve</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={{ flex: 1, backgroundColor: colors.error, padding: 10, borderRadius: 8, alignItems: 'center' }} onPress={() => resolveProposal(detailItem._id, 'reject')}>
+                        <Text style={{ color: '#fff', fontWeight: 'bold' }}>Reject</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
                 <View style={[S.badge,{backgroundColor:(SC[detailItem.validationStatus]||SC.pending).bg,alignSelf:'flex-start',marginVertical:12}]}>
                   <Text style={[S.badgeTxt,{color:(SC[detailItem.validationStatus]||SC.pending).tx}]}>{detailItem.validationStatus.toUpperCase()}</Text>
                 </View>
@@ -182,7 +231,7 @@ export default function FleetManagementScreen() {
                 <Text style={[S.dlValue,{color:detailItem.isAvailable!==false?colors.success:colors.error,fontWeight:'800'}]}>{detailItem.isAvailable!==false?'✅ Available':'❌ Unavailable'}</Text>
                 {detailItem.features && (<><Text style={S.dlLabel}>Features</Text><Text style={S.dlValue}>{detailItem.features}</Text></>)}
                 {detailItem.owner && (<><Text style={S.dlLabel}>Owner</Text><Text style={S.dlValue}>{detailItem.owner.name} ({detailItem.owner.email})</Text></>)}
-                {detailItem.documents?.length > 0 && (<><Text style={S.dlLabel}>Documents ({detailItem.documents.length})</Text>{detailItem.documents.map((d,i)=>(<Text key={i} style={S.dlValue}>📄 {d.docType}</Text>))}</>)}
+                {detailItem.documents?.length > 0 && (<><Text style={S.dlLabel}>Documents ({detailItem.documents.length})</Text>{detailItem.documents.map((d,i)=>(<Text key={i} style={S.dlValue}>📄 {d.docType === 'priceJustification' ? 'Price Justification' : d.docType}</Text>))}</>)}
                 <Text style={S.dlLabel}>Vehicle ID</Text>
                 <Text style={[S.dlValue,{fontFamily:Platform.OS==='ios'?'Menlo':'monospace',fontSize:11}]}>{detailItem._id}</Text>
                 <Text style={S.dlLabel}>Added</Text>
@@ -209,6 +258,14 @@ export default function FleetManagementScreen() {
                 <Text style={[S.dlLabel,{marginTop:0}]}>Available for Booking</Text>
                 <Switch value={editAvail} onValueChange={setEditAvail} trackColor={{false:colors.border,true:colors.success+'60'}} thumbColor={editAvail?colors.success:'#ccc'}/>
               </View>
+              {editItem && parseFloat(editPrice) < editItem.pricePerDay && (
+                <View style={{ marginTop: 20, backgroundColor: colors.warning+'10', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: colors.warning }}>
+                  <Text style={{ fontSize: 14, fontWeight: 'bold', color: colors.warning, marginBottom: 8 }}>Price Decrease Requires Justification</Text>
+                  <TouchableOpacity style={{ padding: 12, backgroundColor: colors.surfaceHighlight, borderRadius: 8, borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed', alignItems: 'center' }} onPress={pickDoc}>
+                    <Text style={{ color: colors.primary, fontWeight: '700' }}>{editDoc ? '✅ ' + editDoc.name : 'Tap to Upload Document'}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
               <TouchableOpacity style={[S.saveBtn,actionId==='edit'&&{opacity:0.5}]} onPress={doEdit} disabled={actionId==='edit'}>
                 {actionId==='edit'?<ActivityIndicator size="small" color="#fff"/>:<Text style={S.saveBtnTxt}>Save Changes</Text>}
               </TouchableOpacity>
