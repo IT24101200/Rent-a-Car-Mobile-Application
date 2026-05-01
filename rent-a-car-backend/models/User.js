@@ -17,7 +17,8 @@ const userSchema = new mongoose.Schema({
     nic:     { type: String },
     selfie:  { type: String },
     status:  { type: String, enum: ['unverified', 'pending', 'verified', 'rejected'], default: 'unverified' }
-  }
+  },
+  expoPushToken: { type: String }
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

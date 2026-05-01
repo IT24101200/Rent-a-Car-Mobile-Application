@@ -13,7 +13,9 @@ const Vehicle  = require('./models/Vehicle');
 const User     = require('./models/User');
 const Booking  = require('./models/Booking');
 const Feedback = require('./models/Feedback');
-const Report   = require('./models/Report');
+const Report       = require('./models/Report');
+const Notification = require('./models/Notification');
+const axios        = require('axios');
 
 const app = express();
 app.use(cors());
@@ -152,6 +154,72 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
     res.json(user);
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch user state.', error: err.message });
+  }
+});
+
+// ── Notification Helper ────────────────────────────────────────────────
+const sendNotification = async (userId, title, message, type = 'info', linkTo = null) => {
+  try {
+    const user = await User.findById(userId);
+    if (!user) return;
+
+    const notif = await Notification.create({ user: userId, title, message, type, linkTo });
+
+    if (user.expoPushToken) {
+      await axios.post('https://exp.host/--/api/v2/push/send', {
+        to: user.expoPushToken,
+        title,
+        body: message,
+        data: { linkTo, notificationId: notif._id }
+      }, {
+        headers: {
+          'Accept': 'application/json',
+          'Accept-encoding': 'gzip, deflate',
+          'Content-Type': 'application/json',
+        }
+      });
+    }
+  } catch (err) {
+    console.log('Failed to send push notification:', err.message);
+  }
+};
+
+// POST /api/users/push-token — Register Expo Push Token
+app.post('/api/users/push-token', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    
+    user.expoPushToken = req.body.token;
+    await user.save();
+    
+    res.json({ message: 'Push token updated successfully.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error.', error: err.message });
+  }
+});
+
+// GET /api/notifications — Get User's Notifications
+app.get('/api/notifications', authMiddleware, async (req, res) => {
+  try {
+    const notifications = await Notification.find({ user: req.user.id }).sort({ createdAt: -1 });
+    res.json(notifications);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error.', error: err.message });
+  }
+});
+
+// PATCH /api/notifications/:id/read — Mark Notification as Read
+app.patch('/api/notifications/:id/read', authMiddleware, async (req, res) => {
+  try {
+    const notif = await Notification.findOneAndUpdate(
+      { _id: req.params.id, user: req.user.id },
+      { read: true },
+      { new: true }
+    );
+    res.json(notif);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error.', error: err.message });
   }
 });
 
@@ -856,21 +924,94 @@ app.patch('/api/bookings/:id/checkin', authMiddleware, upload.single('conditionP
 // PATCH /api/bookings/:id/checkout — Customer finishes trip
 app.patch('/api/bookings/:id/checkout', authMiddleware, upload.single('conditionPhoto'), async (req, res) => {
   try {
-    const booking = await Booking.findOne({ _id: req.params.id, user: req.user.id });
+    const booking = await Booking.findOne({ _id: req.params.id, user: req.user.id }).populate('vehicle');
     if (!booking) return res.status(404).json({ message: 'Booking not found.' });
     if (booking.status !== 'active') return res.status(400).json({ message: 'Trip is not active.' });
+
+    const now = new Date();
+    
+    // Check for late return (Option A: 2 hours grace period)
+    const msLate = now.getTime() - new Date(booking.endDate).getTime();
+    if (msLate > 2 * 60 * 60 * 1000) {
+      // Math.ceil converts hours to full extra days. (e.g. 3 hours late = 1 day, 25 hours late = 2 days)
+      const extraDaysToCharge = Math.ceil(msLate / (24 * 60 * 60 * 1000));
+      const penalty = extraDaysToCharge * (booking.vehicle.pricePerDay || 0);
+      
+      booking.additionalCharges = (booking.additionalCharges || 0) + penalty;
+      booking.paymentStatus = 'pending_extra_payment';
+
+      // Send penalty notification
+      await sendNotification(
+        booking.user,
+        'Late Penalty Applied',
+        `Your trip was returned ${extraDaysToCharge} day(s) late. A penalty of Rs. ${penalty.toLocaleString()} has been added.`,
+        'penalty'
+      );
+    }
 
     booking.status = 'returning';
     booking.checkOutDetails = {
       odometer: req.body.odometer || 0,
       conditionPhoto: req.file ? `/uploads/${req.file.filename}` : null,
-      time: new Date()
+      time: now
     };
 
     await booking.save();
     res.json(booking);
   } catch (err) {
     res.status(500).json({ message: 'Check-out failed.', error: err.message });
+  }
+});
+
+// PATCH /api/bookings/:id/extend — Customer proactively extends trip
+app.patch('/api/bookings/:id/extend', authMiddleware, async (req, res) => {
+  try {
+    const { newEndDate } = req.body;
+    if (!newEndDate) return res.status(400).json({ message: 'New end date is required.' });
+
+    const booking = await Booking.findOne({ _id: req.params.id, user: req.user.id }).populate('vehicle');
+    if (!booking) return res.status(404).json({ message: 'Booking not found.' });
+    if (booking.status !== 'active') return res.status(400).json({ message: 'Trip is not active.' });
+
+    const requestedEnd = new Date(newEndDate);
+    if (requestedEnd <= new Date(booking.endDate)) {
+      return res.status(400).json({ message: 'New end date must be after the current end date.' });
+    }
+
+    // Check availability against other bookings
+    const conflicting = await Booking.findOne({
+      vehicle: booking.vehicle._id,
+      status: { $in: ['confirmed', 'active'] },
+      _id: { $ne: booking._id },
+      startDate: { $lt: requestedEnd },
+      endDate: { $gt: booking.endDate }
+    });
+
+    if (conflicting) {
+      return res.status(400).json({ message: 'Vehicle is already booked for the requested extension period.' });
+    }
+
+    // Calculate extra days and cost
+    const msExtra = requestedEnd.getTime() - new Date(booking.endDate).getTime();
+    const extraDays = Math.ceil(msExtra / (24 * 60 * 60 * 1000));
+    const extraCost = extraDays * (booking.vehicle.pricePerDay || 0);
+
+    booking.endDate = requestedEnd;
+    booking.additionalCharges = (booking.additionalCharges || 0) + extraCost;
+    booking.paymentStatus = 'pending_extra_payment';
+
+    await booking.save();
+
+    await sendNotification(
+      booking.user,
+      'Trip Extended',
+      `Your trip has been extended until ${requestedEnd.toLocaleString([], {dateStyle:'medium', timeStyle:'short'})}. Estimated extra charge: Rs. ${extraCost.toLocaleString()}.`,
+      'success'
+    );
+
+    res.json({ message: 'Booking extended successfully. Please pay the additional balance.', booking });
+  } catch (err) {
+    res.status(500).json({ message: 'Extension failed.', error: err.message });
   }
 });
 

@@ -11,7 +11,7 @@ import { SIZES, SHADOWS } from '../../theme/theme';
 
 
 
-export default function MyBookingsScreen() {
+export default function MyBookingsScreen({ navigation }) {
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => getStyles(colors), [colors]);
 
@@ -55,6 +55,13 @@ export default function MyBookingsScreen() {
   const [odometer, setOdometer] = useState('');
   const [photoUri, setPhotoUri] = useState(null);
   const [processingState, setProcessingState] = useState(false);
+
+  // Extend Modal
+  const [extendModal, setExtendModal] = useState(null);
+  const [extendEndDate, setExtendEndDate] = useState(new Date());
+  const [showExtendPicker, setShowExtendPicker] = useState(false);
+  const [showExtendTimePicker, setShowExtendTimePicker] = useState(false);
+  const [extending, setExtending] = useState(false);
 
   // Detail Modal
   const [detailModal, setDetailModal] = useState(null);
@@ -225,24 +232,48 @@ export default function MyBookingsScreen() {
     }
   };
 
+  const openExtend = (booking) => {
+    setExtendModal(booking);
+    setExtendEndDate(new Date(booking.endDate));
+  };
+
+  const submitExtend = async () => {
+    if (extendEndDate <= new Date(extendModal.endDate)) {
+      return Alert.alert('Invalid Date', 'The new end date must be after your current end date.');
+    }
+    setExtending(true);
+    try {
+      const res = await api.patch(`/api/bookings/${extendModal._id}/extend`, { newEndDate: extendEndDate });
+      setBookings(prev => prev.map(b => b._id === extendModal._id ? res.data.booking : b));
+      setExtendModal(null);
+      Alert.alert('Success', res.data.message);
+    } catch (err) {
+      Alert.alert('Extension Failed', err.response?.data?.message || 'Failed to extend booking.');
+    } finally {
+      setExtending(false);
+    }
+  };
+
   // ── Renders ───────────────────────────────────────────────────────
-  const renderHeader = () => (
-    <View style={styles.headerBox}>
-      <Text style={styles.title}>My Trips</Text>
-      
-      <View style={styles.tabContainer}>
-        <TouchableOpacity style={[styles.tabBtn, activeTab === 'active' && styles.tabBtnActive]} onPress={() => setActiveTab('active')}>
-          <Text style={[styles.tabText, activeTab === 'active' && styles.tabTextActive]}>Active ({activeBookingsArr.length})</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.tabBtn, activeTab === 'upcoming' && styles.tabBtnActive]} onPress={() => setActiveTab('upcoming')}>
-          <Text style={[styles.tabText, activeTab === 'upcoming' && styles.tabTextActive]}>Upcoming ({upcomingBookingsArr.length})</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.tabBtn, activeTab === 'history' && styles.tabBtnActive]} onPress={() => setActiveTab('history')}>
-          <Text style={[styles.tabText, activeTab === 'history' && styles.tabTextActive]}>History</Text>
-        </TouchableOpacity>
+  const renderHeader = () => {
+    return (
+      <View style={styles.headerBox}>
+        <Text style={styles.title}>My Trips</Text>
+
+        <View style={styles.tabContainer}>
+          <TouchableOpacity style={[styles.tabBtn, activeTab === 'active' && styles.tabBtnActive]} onPress={() => setActiveTab('active')}>
+            <Text style={[styles.tabText, activeTab === 'active' && styles.tabTextActive]}>Active ({activeBookingsArr.length})</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.tabBtn, activeTab === 'upcoming' && styles.tabBtnActive]} onPress={() => setActiveTab('upcoming')}>
+            <Text style={[styles.tabText, activeTab === 'upcoming' && styles.tabTextActive]}>Upcoming ({upcomingBookingsArr.length})</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.tabBtn, activeTab === 'history' && styles.tabBtnActive]} onPress={() => setActiveTab('history')}>
+            <Text style={[styles.tabText, activeTab === 'history' && styles.tabTextActive]}>History</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   const getEmptyMessage = () => {
     switch (activeTab) {
@@ -292,9 +323,9 @@ export default function MyBookingsScreen() {
                 ) : (
                   <View style={styles.vehicleImgPlaceholder}><Text style={{fontSize: 24}}>🚗</Text></View>
                 )}
-                <View style={{flex: 1, marginLeft: 16}}>
+                <View style={{flex: 1, marginLeft: 16, marginRight: 8, justifyContent: 'center'}}>
                   <Text style={styles.carName} numberOfLines={1}>{item.vehicle?.makeAndModel || 'Vehicle'}</Text>
-                  <Text style={styles.licensePlate} numberOfLines={1}>{item.vehicle?.licensePlate}</Text>
+                  <Text style={styles.licensePlate} numberOfLines={1}>{item.vehicle?.licensePlate || 'N/A'}</Text>
                 </View>
                 <View style={[styles.badge, { backgroundColor: sc.bg }]}>
                   <View style={[styles.statusDot, { backgroundColor: sc.text }]} />
@@ -302,12 +333,17 @@ export default function MyBookingsScreen() {
                 </View>
               </View>
               
-              <View style={styles.metaRow}>
-                <Text style={styles.detailTitle}>Dates</Text>
-                <Text style={styles.detailVal}>{new Date(item.startDate).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}  →  {new Date(item.endDate).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</Text>
+              <View style={[styles.metaRow, { flexDirection: 'column', alignItems: 'flex-start' }]}>
+                <Text style={styles.detailTitle}>Rental Period</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 10 }}>
+                  <Text style={[styles.detailVal, { fontSize: 12 }]}>{new Date(item.startDate).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</Text>
+                  <Text style={{ color: colors.textMuted, fontSize: 12 }}>→</Text>
+                  <Text style={[styles.detailVal, { fontSize: 12 }]}>{new Date(item.endDate).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</Text>
+                </View>
               </View>
+              
               <View style={[styles.metaRow, { borderBottomWidth: 0, paddingBottom: 0, marginTop: 4 }]}>
-                <Text style={styles.detailTitle}>Total Price</Text>
+                <Text style={styles.detailTitle}>Total Cost</Text>
                 <Text style={styles.priceVal}>Rs. {item.totalPrice?.toLocaleString()}</Text>
               </View>
 
@@ -341,8 +377,11 @@ export default function MyBookingsScreen() {
               {/* Action Buttons for ACTIVE */}
               {activeTab === 'active' && item.status === 'active' && (
                <View style={styles.actionRow}>
-                 <TouchableOpacity style={styles.primaryActionBtn} onPress={() => openAccountability(item, 'checkout')}>
-                    <Text style={styles.primaryActionText}>End Trip (Check-Out)</Text>
+                 <TouchableOpacity style={[styles.primaryActionBtn, { flex: 2 }]} onPress={() => openAccountability(item, 'checkout')}>
+                    <Text style={styles.primaryActionText}>End Trip</Text>
+                 </TouchableOpacity>
+                 <TouchableOpacity style={[styles.rescheduleBtn, { flex: 1, marginLeft: 10 }]} onPress={() => openExtend(item)}>
+                    <Text style={styles.rescheduleText}>Extend</Text>
                  </TouchableOpacity>
                </View>
               )}
@@ -394,6 +433,14 @@ export default function MyBookingsScreen() {
 
                 <Text style={styles.ratingLabel}>Total Price</Text>
                 <Text style={[styles.detailValueText, { color: colors.success, fontWeight: '900', fontSize: 20 }]}>Rs. {(detailModal.totalPrice || 0).toLocaleString()}</Text>
+
+                {detailModal.additionalCharges > 0 && (
+                  <View style={{ backgroundColor: colors.warning+'15', padding: 12, borderRadius: 8, marginTop: 10, borderWidth: 1, borderColor: colors.warning }}>
+                    <Text style={[styles.ratingLabel, { marginTop: 0, color: colors.warning }]}>Outstanding Extra Balance</Text>
+                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: colors.warning }}>Rs. {detailModal.additionalCharges.toLocaleString()}</Text>
+                    <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 4 }}>This includes late return penalties or extension fees.</Text>
+                  </View>
+                )}
 
                 {detailModal.cancellationReason && (
                   <>
@@ -587,6 +634,93 @@ export default function MyBookingsScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.submitBtn, { flex: 2, padding: 14, marginTop: 0 }, (newDays <= 0 || rescheduling) && { opacity: 0.6 }]} onPress={submitReschedule} disabled={newDays <= 0 || rescheduling}>
                   {rescheduling ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.submitBtnText}>Confirm Changes</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* ── Extend Modal ───────────────────────── */}
+      {extendModal && (
+        <Modal visible animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalBox}>
+              <Text style={styles.modalTitle}>Extend Your Trip</Text>
+              <Text style={{color: colors.textSecondary, marginBottom: 20}}>Select a new checkout date. Additional charges will apply.</Text>
+
+              <View style={styles.datePickerContainer}>
+                <View style={[styles.datePickerCol, { flex: 1 }]}>
+                  <Text style={styles.datePickerLabel}>New Drop-off Time</Text>
+                  {Platform.OS === 'ios' ? (
+                    <DateTimePicker value={extendEndDate} mode="datetime" display="default" minimumDate={new Date(extendModal.endDate)} onChange={(e, d) => d && setExtendEndDate(d)} />
+                  ) : (
+                    <View style={{flexDirection: 'row', gap: 5}}>
+                      <TouchableOpacity style={styles.dateBtn} onPress={() => setShowExtendPicker(true)}>
+                        <Text style={styles.dateBtnText}>{extendEndDate.toLocaleDateString()}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.dateBtn} onPress={() => setShowExtendTimePicker(true)}>
+                        <Text style={styles.dateBtnText}>{extendEndDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* Android Pickers */}
+              {Platform.OS !== 'ios' && showExtendPicker && (
+                <DateTimePicker
+                  value={extendEndDate}
+                  mode="date"
+                  display="default"
+                  minimumDate={new Date(extendModal.endDate)}
+                  onChange={(e, date) => {
+                    setShowExtendPicker(false);
+                    if (date) {
+                      const updated = new Date(extendEndDate);
+                      updated.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
+                      setExtendEndDate(updated);
+                    }
+                  }}
+                />
+              )}
+              {Platform.OS !== 'ios' && showExtendTimePicker && (
+                <DateTimePicker
+                  value={extendEndDate}
+                  mode="time"
+                  display="default"
+                  onChange={(e, time) => {
+                    setShowExtendTimePicker(false);
+                    if (time) {
+                      const updated = new Date(extendEndDate);
+                      updated.setHours(time.getHours(), time.getMinutes());
+                      setExtendEndDate(updated);
+                    }
+                  }}
+                />
+              )}
+
+              {/* Estimate Cost */}
+              {(() => {
+                const msExtra = extendEndDate.getTime() - new Date(extendModal.endDate).getTime();
+                const extraDays = Math.ceil(msExtra / (24 * 60 * 60 * 1000));
+                const estPrice = extraDays > 0 ? extraDays * (extendModal.vehicle?.pricePerDay || 0) : 0;
+                return (
+              <View style={styles.rescheduleMetaBox}>
+                <View style={[styles.metaRow, { borderBottomWidth: 0, paddingBottom: 0, marginTop: 4 }]}>
+                  <Text style={styles.detailTitle}>Estimated Extra Charge</Text>
+                  <Text style={[styles.priceVal, { color: colors.warning }]}>Rs. {estPrice.toLocaleString()}</Text>
+                </View>
+              </View>
+                );
+              })()}
+
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 10 }}>
+                <TouchableOpacity style={[styles.cancelBtn, { flex: 1, backgroundColor: colors.surfaceHighlight, borderRadius: 10, marginTop: 0 }]} onPress={() => setExtendModal(null)}>
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.submitBtn, { flex: 2, padding: 14, marginTop: 0 }]} onPress={submitExtend} disabled={extending}>
+                  {extending ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.submitBtnText}>Confirm Extension</Text>}
                 </TouchableOpacity>
               </View>
             </View>

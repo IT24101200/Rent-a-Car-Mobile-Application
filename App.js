@@ -45,6 +45,9 @@ import CustomerFeedbackScreen from './src/screens/customer/CustomerFeedbackScree
 // Profile Screen (shared by all roles)
 import ProfileScreen from './src/screens/profile/ProfileScreen';
 
+// Shared
+import NotificationsScreen from './src/screens/shared/NotificationsScreen';
+
 const Stack = createNativeStackNavigator();
 const Tab   = createBottomTabNavigator();
 
@@ -203,6 +206,7 @@ function RootNavigator() {
           <Stack.Screen name="VehicleDetail" component={VehicleDetailScreen} options={{ ...stackHeaderOptions, title: 'Vehicle Summary' }} />
           <Stack.Screen name="Booking" component={BookingScreen} options={{ ...stackHeaderOptions, title: 'Book Vehicle' }} />
           <Stack.Screen name="Payment" component={PaymentScreen} options={{ ...stackHeaderOptions, title: 'Secure Checkout' }} />
+          <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ ...stackHeaderOptions, title: 'Notifications' }} />
           <Stack.Screen name="KYCUpload" component={KYCUploadScreen} options={{ ...stackHeaderOptions, title: 'Identity Check' }} />
           <Stack.Screen name="AddVehicle" component={AddVehicleScreen} options={{ ...stackHeaderOptions, title: 'Add to Fleet' }} />
           

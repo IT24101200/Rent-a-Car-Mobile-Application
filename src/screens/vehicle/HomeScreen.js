@@ -130,9 +130,14 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.greeting}>Hello, {user?.name?.split(' ')[0]}</Text>
             <Text style={styles.subGreeting}>Welcome to DriveEase</Text>
           </View>
-          <TouchableOpacity style={styles.avatarBtn} onPress={() => navigation.navigate('Profile')}>
-            <Text style={styles.avatarText}>{user?.name?.charAt(0)?.toUpperCase()}</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity style={[styles.avatarBtn, { marginRight: 12 }]} onPress={() => navigation.navigate('Notifications')}>
+              <Text style={styles.avatarText}>🔔</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.avatarBtn} onPress={() => navigation.navigate('Profile')}>
+              <Text style={styles.avatarText}>{user?.name?.charAt(0)?.toUpperCase()}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -219,7 +224,7 @@ const getStyles = (C) => StyleSheet.create({
   
   // ── Green Header ──
   greenHeader:    { backgroundColor: C.headerGradientStart, paddingTop: 50, paddingBottom: 24, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
-  greetingRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  greetingRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   brandLabel:     { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.7)', letterSpacing: 0.5, marginBottom: 4 },
   greeting:       { fontSize: 24, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
   subGreeting:    { color: 'rgba(255,255,255,0.6)', marginTop: 2, fontSize: 13, fontWeight: '500' },

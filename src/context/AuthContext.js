@@ -1,14 +1,47 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 
 import api from '../api/api';
 
 export const AuthContext = createContext();
 
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
+
 export const AuthProvider = ({ children }) => {
   const [user,    setUser]    = useState(null);
   const [token,   setToken]   = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const registerPushToken = async (activeToken) => {
+    if (!Device.isDevice) return;
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      if (finalStatus !== 'granted') return;
+      
+      const tokenRes = await Notifications.getExpoPushTokenAsync();
+      if (tokenRes?.data && activeToken) {
+        await api.post('/api/users/push-token', { token: tokenRes.data }, {
+          headers: { Authorization: `Bearer ${activeToken}` }
+        });
+      }
+    } catch (e) {
+      console.warn('Push registration error:', e);
+    }
+  };
 
   // On app start, restore saved session from storage
   useEffect(() => {
@@ -26,6 +59,7 @@ export const AuthProvider = ({ children }) => {
              const res = await api.get('/api/auth/me', { headers: { Authorization: `Bearer ${savedToken}` } });
              setUser(res.data);
              await AsyncStorage.setItem('user', JSON.stringify(res.data));
+             registerPushToken(savedToken);
           } catch(err) {
              // If token is expired/invalid, force logout
              if (err.response?.status === 401) {
@@ -54,6 +88,7 @@ export const AuthProvider = ({ children }) => {
     try {
       await AsyncStorage.setItem('token', jwtToken);
       await AsyncStorage.setItem('user', JSON.stringify(userData));
+      registerPushToken(jwtToken);
     } catch (e) {
       console.warn('Could not persist session (non-fatal):', e.message);
     }

@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, FlatList, StyleSheet, TouchableOpacity,
+  View, Text, FlatList, StyleSheet, TouchableOpacity, Modal,
   ActivityIndicator, Alert, SafeAreaView, RefreshControl, ScrollView, Platform, Image, StatusBar
 } from 'react-native';
 import api from '../../api/api';
 import { SIZES, SHADOWS } from '../../theme/theme';
 import { useTheme } from '../../context/ThemeContext';
-
 
 
 
@@ -177,6 +176,26 @@ export default function OwnerDashboardScreen({ navigation }) {
                 <Text style={styles.detailTitle}>Total Payout:</Text>
                 <Text style={[styles.detailText, { color: C.success, fontWeight: '800', fontSize: 16 }]}>Rs. {item.totalPrice}</Text>
               </View>
+              
+              {/* Inject Odometer readings directly onto the card if present */}
+              {(item.checkInDetails?.odometer || item.checkOutDetails?.odometer) && (
+                <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: C.border, paddingTop: 12, flexDirection: 'row', justifyContent: 'space-between' }}>
+                  
+                  {item.checkInDetails?.odometer && (
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.detailTitle}>Check-In Odo:</Text>
+                      <Text style={[styles.detailText, { fontWeight: '700' }]}>{item.checkInDetails.odometer} km</Text>
+                    </View>
+                  )}
+
+                  {item.checkOutDetails?.odometer && (
+                    <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                      <Text style={styles.detailTitle}>Return Odo:</Text>
+                      <Text style={[styles.detailText, { fontWeight: '700' }]}>{item.checkOutDetails.odometer} km</Text>
+                    </View>
+                  )}
+                </View>
+              )}
             </View>
 
             {activeTab === 'active' && item.status === 'returning' && (
@@ -266,6 +285,12 @@ export default function OwnerDashboardScreen({ navigation }) {
                     <Text style={styles.ratingLabel}>Check-In Details</Text>
                     <Text style={styles.modalSub}>🕐 {new Date(detailModal.checkInDetails.time).toLocaleString()}</Text>
                     <Text style={styles.modalSub}>📟 Odometer: {detailModal.checkInDetails.odometer} km</Text>
+                    {detailModal.checkInDetails.conditionPhoto && (
+                      <View style={{marginTop: 8, marginBottom: 16}}>
+                        <Text style={{fontSize: 12, color: C.textSecondary, marginBottom: 4}}>Check-In Photo:</Text>
+                        <Image source={{ uri: `${api.defaults.baseURL || 'http://localhost:5000'}${detailModal.checkInDetails.conditionPhoto}` }} style={{width: 150, height: 100, borderRadius: 8, backgroundColor: C.surfaceHighlight}} resizeMode="cover" />
+                      </View>
+                    )}
                   </>
                 )}
 

@@ -6,6 +6,7 @@ const bookingSchema = new mongoose.Schema({
   startDate:  { type: Date, required: true },
   endDate:    { type: Date, required: true },
   totalPrice: { type: Number, required: true },
+  additionalCharges: { type: Number, default: 0 },
   
   // booking lifecycle: pending -> confirmed -> active -> returning -> completed / cancelled
   status: { 
@@ -30,7 +31,7 @@ const bookingSchema = new mongoose.Schema({
   },
   paymentStatus: {
     type: String,
-    enum: ['pending', 'paid', 'refunded', 'rejected'],
+    enum: ['pending', 'paid', 'refunded', 'rejected', 'pending_extra_payment'],
     default: 'paid'
   },
   cancellationReason: {
