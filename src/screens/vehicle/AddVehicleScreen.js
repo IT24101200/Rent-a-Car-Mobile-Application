@@ -4,9 +4,12 @@ import {
   StyleSheet, ScrollView, Alert, KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTheme } from '../../context/ThemeContext';
 import api from '../../api/api';
 import { SIZES, SHADOWS } from '../../theme/theme';
+
+const MAX_IMAGES = 5;
 
 // Document definitions
 const DOCUMENTS = [
@@ -30,7 +33,7 @@ export default function AddVehicleScreen({ navigation }) {
     year: new Date().getFullYear().toString(),
     features: ''
   });
-  const [image, setImage] = useState(null);      // vehicle photo
+  const [images, setImages] = useState([]);   // array of {uri,name,type}
   const [docs, setDocs] = useState({});           // { revenueLicense: {uri,name,type}, ... }
   const [loading, setLoading] = useState(false);
 
@@ -44,6 +47,9 @@ export default function AddVehicleScreen({ navigation }) {
     if (status !== 'granted') {
       return Alert.alert('Permission needed', 'Please grant photo library access.');
     }
+    if (!fieldKey && images.length >= MAX_IMAGES) {
+      return Alert.alert('Limit Reached', `Maximum ${MAX_IMAGES} vehicle photos allowed.`);
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
@@ -53,13 +59,17 @@ export default function AddVehicleScreen({ navigation }) {
     if (!result.canceled && result.assets.length > 0) {
       const asset = result.assets[0];
       const ext   = asset.uri.split('.').pop();
-      const file  = { uri: asset.uri, name: `${fieldKey || 'vehicle'}.${ext}`, type: `image/${ext}` };
+      const file  = { uri: asset.uri, name: `${fieldKey || 'vehicle_' + Date.now()}.${ext}`, type: `image/${ext}` };
       if (fieldKey) {
         setDocs(prev => ({ ...prev, [fieldKey]: file }));
       } else {
-        setImage(file);
+        setImages(prev => [...prev, file]);
       }
     }
+  };
+
+  const removeImage = (index) => {
+    setImages(prev => prev.filter((_, i) => i !== index));
   };
 
   const validate = () => {
@@ -69,7 +79,8 @@ export default function AddVehicleScreen({ navigation }) {
       return 'Valid Price Per Day is required.';
     if (!form.year || isNaN(form.year) || Number(form.year) < 1990 || Number(form.year) > new Date().getFullYear() + 1)
       return 'Please enter a valid Year.';
-    if (!image) return 'A vehicle photo is required.';
+    if (images.length === 0) return 'At least one vehicle photo is required.';
+    if (images.length > MAX_IMAGES) return `Maximum ${MAX_IMAGES} vehicle photos allowed.`;
     const missingDocs = DOCUMENTS.filter(d => d.required && !docs[d.key]);
     if (missingDocs.length > 0)
       return `Missing required documents: ${missingDocs.map(d => d.label).join(', ')}`;
@@ -92,7 +103,11 @@ export default function AddVehicleScreen({ navigation }) {
       formData.append('seats',         form.seats);
       formData.append('year',          form.year);
       formData.append('features',      form.features);
-      formData.append('image', { uri: image.uri, name: image.name, type: image.type });
+
+      // Append all vehicle images
+      images.forEach((img) => {
+        formData.append('image', { uri: img.uri, name: img.name, type: img.type });
+      });
 
       // Append each document
       Object.entries(docs).forEach(([key, file]) => {
@@ -112,7 +127,7 @@ export default function AddVehicleScreen({ navigation }) {
         type: 'Sedan', transmission: 'Automatic', fuelType: 'Petrol',
         seats: '5', year: new Date().getFullYear().toString(), features: ''
       });
-      setImage(null);
+      setImages([]);
       setDocs({});
     } catch (err) {
       Alert.alert('Error', err.response?.data?.message || 'Failed to add vehicle.');
@@ -157,23 +172,37 @@ export default function AddVehicleScreen({ navigation }) {
           <Text style={styles.subtitle}>Fill in details and upload required documents.</Text>
         </View>
 
-        {/* ── Vehicle Photo ─────────────────────────────────────────── */}
-        <TouchableOpacity style={styles.imagePicker} onPress={() => pickImage(null)} activeOpacity={0.8}>
-          {image ? (
-            <Image source={{ uri: image.uri }} style={styles.previewImage} resizeMode="cover" />
-          ) : (
-            <View style={styles.imagePlaceholder}>
-              <Text style={styles.imagePlaceholderIcon}>📷</Text>
-              <Text style={styles.imagePlaceholderText}>Tap to Upload Vehicle Photo</Text>
-              <Text style={styles.imagePlaceholderSub}>Required • Max 5MB • JPG / PNG</Text>
+        {/* ── Vehicle Photos ─────────────────────────────────────────── */}
+        <View style={styles.photoSection}>
+          <View style={styles.photoHeader}>
+            <Text style={styles.sectionHeaderText}>Vehicle Photos</Text>
+            <View style={styles.photoCountPill}>
+              <Text style={styles.photoCountText}>{images.length}/{MAX_IMAGES}</Text>
             </View>
-          )}
-        </TouchableOpacity>
-        {image && (
-          <TouchableOpacity style={styles.changeImageBtn} onPress={() => pickImage(null)}>
-            <Text style={styles.changeImageText}>📸 Change Photo</Text>
-          </TouchableOpacity>
-        )}
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoScroll}>
+            {images.map((img, idx) => (
+              <View key={idx} style={styles.photoThumbWrap}>
+                <Image source={{ uri: img.uri }} style={styles.photoThumb} resizeMode="cover" />
+                <TouchableOpacity style={styles.photoRemoveBtn} onPress={() => removeImage(idx)}>
+                  <MaterialCommunityIcons name="close-circle" size={22} color="#EF4444" />
+                </TouchableOpacity>
+                {idx === 0 && (
+                  <View style={styles.primaryBadge}>
+                    <Text style={styles.primaryBadgeText}>COVER</Text>
+                  </View>
+                )}
+              </View>
+            ))}
+            {images.length < MAX_IMAGES && (
+              <TouchableOpacity style={styles.photoAddBtn} onPress={() => pickImage(null)} activeOpacity={0.8}>
+                <MaterialCommunityIcons name="camera-plus-outline" size={32} color={colors.primary} />
+                <Text style={styles.photoAddText}>Add Photo</Text>
+                <Text style={styles.photoAddSub}>{images.length === 0 ? 'Required' : 'Optional'}</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
+        </View>
 
         {/* ── Basic Information ──────────────────────────────────────── */}
         <View style={styles.card}>
@@ -316,7 +345,7 @@ const getStyles = (COLORS) => StyleSheet.create({
   title: { fontSize: 26, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
   subtitle:        { color: 'rgba(255,255,255,0.7)', marginTop: 4, fontSize: 14, fontWeight: '600' },
 
-  imagePicker:     { borderRadius: SIZES.radius, overflow: 'hidden', marginBottom: 8, height: 220, borderWidth: 2, borderColor: COLORS.border, borderStyle: 'dashed', backgroundColor: COLORS.surface },
+  imagePicker:     { borderRadius: 16, overflow: 'hidden', marginBottom: 8, height: 220, borderWidth: 2, borderColor: COLORS.border, borderStyle: 'dashed', backgroundColor: COLORS.surface },
   previewImage:    { width: '100%', height: '100%' },
   imagePlaceholder:{ flex: 1, alignItems: 'center', justifyContent: 'center' },
   imagePlaceholderIcon: { fontSize: 44, marginBottom: 12 },
@@ -324,6 +353,22 @@ const getStyles = (COLORS) => StyleSheet.create({
   imagePlaceholderSub:  { fontSize: 13, color: COLORS.textSecondary, marginTop: 6, fontWeight: '600' },
   changeImageBtn:  { alignItems: 'flex-start', marginBottom: 20, paddingVertical: 8 },
   changeImageText: { color: COLORS.primary, fontWeight: '800', fontSize: 14 },
+
+  // Multi-image photo strip
+  photoSection:    { marginBottom: 20 },
+  photoHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  sectionHeaderText: { fontSize: 18, fontWeight: '900', color: COLORS.primary, letterSpacing: -0.2 },
+  photoCountPill:  { backgroundColor: COLORS.primary + '15', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  photoCountText:  { color: COLORS.primary, fontWeight: '800', fontSize: 12 },
+  photoScroll:     { gap: 12, paddingVertical: 4 },
+  photoThumbWrap:  { width: 130, height: 100, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: COLORS.border, position: 'relative' },
+  photoThumb:      { width: '100%', height: '100%' },
+  photoRemoveBtn:  { position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 11, width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
+  primaryBadge:    { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(52,211,153,0.85)', paddingVertical: 3, alignItems: 'center' },
+  primaryBadgeText: { color: '#fff', fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+  photoAddBtn:     { width: 130, height: 100, borderRadius: 14, borderWidth: 2, borderStyle: 'dashed', borderColor: COLORS.border, backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center' },
+  photoAddText:    { color: COLORS.primary, fontWeight: '800', fontSize: 12, marginTop: 4 },
+  photoAddSub:     { color: COLORS.textMuted, fontWeight: '600', fontSize: 10, marginTop: 2 },
 
   card:            { backgroundColor: COLORS.surface, borderRadius: SIZES.radius, padding: 20, ...SHADOWS.card, borderWidth: 1, borderColor: COLORS.border },
   sectionHeader:   { fontSize: 18, fontWeight: '900', color: COLORS.primary, marginBottom: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border, letterSpacing: -0.2 },

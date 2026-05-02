@@ -40,7 +40,7 @@ const upload = multer({ storage, fileFilter, limits: { fileSize: 5 * 1024 * 1024
 
 // Multi-field upload handler: vehicle image + 5 document types
 const uploadVehicleFiles = upload.fields([
-  { name: 'image',          maxCount: 1 },
+  { name: 'image',          maxCount: 5 },
   { name: 'revenueLicense', maxCount: 1 },
   { name: 'insurance',      maxCount: 1 },
   { name: 'registration',   maxCount: 1 },
@@ -488,8 +488,11 @@ app.post('/api/vehicles', authMiddleware, uploadVehicleFiles, async (req, res) =
       return res.status(400).json({ message: 'makeAndModel, licensePlate and pricePerDay are required.' });
 
     const files = req.files || {};
-    if (!files.image || !files.image[0])
-      return res.status(400).json({ message: 'A vehicle photo is required.' });
+    console.log('Received files for vehicle:', Object.keys(files).map(k => `${k}: ${files[k].length}`));
+    if (!files.image || files.image.length === 0)
+      return res.status(400).json({ message: 'At least one vehicle photo is required.' });
+    if (files.image.length > 5)
+      return res.status(400).json({ message: 'Maximum 5 vehicle photos allowed.' });
 
     // Validate required documents
     const REQUIRED_DOCS = ['revenueLicense', 'insurance', 'registration'];
@@ -497,7 +500,8 @@ app.post('/api/vehicles', authMiddleware, uploadVehicleFiles, async (req, res) =
     if (missing.length > 0)
       return res.status(400).json({ message: `Missing required documents: ${missing.join(', ')}` });
 
-    const imageUrl = `/uploads/${files.image[0].filename}`;
+    const images = files.image.map(f => `/uploads/${f.filename}`);
+    const imageUrl = images[0]; // primary image for backward compat
     const documents = buildDocuments(files);
 
     const vehicle = await Vehicle.create({
@@ -509,6 +513,7 @@ app.post('/api/vehicles', authMiddleware, uploadVehicleFiles, async (req, res) =
       year: year ? Number(year) : undefined,
       features,
       imageUrl,
+      images,
       documents,
       isAvailable:      true,
       validationStatus: 'pending',
@@ -597,23 +602,45 @@ app.put('/api/owner/vehicles/:id', authMiddleware, ownerMiddleware, uploadVehicl
     }
 
     // ── Two-tier edit logic ──
-    // Critical changes (name, plate, photo, documents, price increase) reset status to pending
-    // Safe changes (price decrease, features, seats, etc.) keep current status
     const criticalChanged =
       makeAndModel !== existingVehicle.makeAndModel ||
       licensePlate.toUpperCase() !== existingVehicle.licensePlate ||
       isPriceIncrease ||
-      (files.image && files.image[0]) ||
+      (files.image && files.image.length > 0) ||
       Object.keys(files).some(k => ['revenueLicense', 'insurance', 'registration', 'fitness', 'priceJustification'].includes(k));
 
-    // Replace vehicle photo if new one uploaded
-    if (files.image && files.image[0]) {
-      if (existingVehicle.imageUrl) {
-        const oldPath = path.join(__dirname, existingVehicle.imageUrl);
+    // ── Handle multi-image updates ──
+    // Parse removedImages from body (JSON array of URLs to remove)
+    let removedImages = [];
+    try { removedImages = JSON.parse(req.body.removedImages || '[]'); } catch (e) { /* ignore */ }
+
+    // Start with existing images (backward compat: fallback to [imageUrl])
+    let currentImages = existingVehicle.images && existingVehicle.images.length > 0
+      ? [...existingVehicle.images]
+      : (existingVehicle.imageUrl ? [existingVehicle.imageUrl] : []);
+
+    // Remove images marked for deletion
+    if (removedImages.length > 0) {
+      removedImages.forEach(imgUrl => {
+        const oldPath = path.join(__dirname, imgUrl);
         if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-      }
-      existingVehicle.imageUrl = `/uploads/${files.image[0].filename}`;
+      });
+      currentImages = currentImages.filter(url => !removedImages.includes(url));
     }
+
+    // Add newly uploaded images
+    if (files.image && files.image.length > 0) {
+      const newUrls = files.image.map(f => `/uploads/${f.filename}`);
+      currentImages = [...currentImages, ...newUrls];
+    }
+
+    // Enforce max 5
+    if (currentImages.length > 5) {
+      return res.status(400).json({ message: 'Maximum 5 vehicle photos allowed.' });
+    }
+
+    existingVehicle.images = currentImages;
+    existingVehicle.imageUrl = currentImages[0] || null;
 
     // Merge any newly uploaded documents (keep existing ones for untouched types)
     existingVehicle.documents = buildDocuments(files, existingVehicle.documents || []);

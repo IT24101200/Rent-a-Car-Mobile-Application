@@ -31,8 +31,12 @@ export default function OwnerVehiclesScreen({ navigation }) {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState(null);
   const [editForm, setEditForm] = useState({ makeAndModel: '', licensePlate: '', pricePerDay: '' });
-  const [newImage, setNewImage] = useState(null); // photo replacement
+  const [existingImages, setExistingImages] = useState([]); // URLs already on server
+  const [newImages, setNewImages]   = useState([]);          // freshly picked {uri,name,type}
+  const [removedImages, setRemovedImages] = useState([]);    // URLs to delete on save
   const [newDocs, setNewDocs]   = useState({});    // { revenueLicense: {uri,name,type}, ... }
+
+  const MAX_IMAGES = 5;
 
   const fetchMyVehicles = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -125,7 +129,13 @@ export default function OwnerVehiclesScreen({ navigation }) {
 
   const openEditModal = (vehicle) => {
     setEditingVehicle(vehicle);
-    setNewImage(null); // reset new image each time
+    // Load existing images (backward compat: fallback to [imageUrl])
+    const imgs = vehicle.images && vehicle.images.length > 0
+      ? [...vehicle.images]
+      : (vehicle.imageUrl ? [vehicle.imageUrl] : []);
+    setExistingImages(imgs);
+    setNewImages([]);
+    setRemovedImages([]);
     setEditForm({
       makeAndModel: vehicle.makeAndModel || '',
       licensePlate: vehicle.licensePlate || '',
@@ -143,7 +153,9 @@ export default function OwnerVehiclesScreen({ navigation }) {
   const closeEditModal = () => {
     setEditModalVisible(false);
     setEditingVehicle(null);
-    setNewImage(null);
+    setExistingImages([]);
+    setNewImages([]);
+    setRemovedImages([]);
     setNewDocs({});
   };
 
@@ -162,6 +174,10 @@ export default function OwnerVehiclesScreen({ navigation }) {
   };
 
   const pickNewImage = async () => {
+    const totalImages = existingImages.filter(u => !removedImages.includes(u)).length + newImages.length;
+    if (totalImages >= MAX_IMAGES) {
+      return Alert.alert('Limit Reached', `Maximum ${MAX_IMAGES} vehicle photos allowed.`);
+    }
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       return Alert.alert('Permission needed', 'Please grant photo library access.');
@@ -175,8 +191,16 @@ export default function OwnerVehiclesScreen({ navigation }) {
     if (!result.canceled && result.assets.length > 0) {
       const asset = result.assets[0];
       const ext = asset.uri.split('.').pop();
-      setNewImage({ uri: asset.uri, name: `vehicle.${ext}`, type: `image/${ext}` });
+      setNewImages(prev => [...prev, { uri: asset.uri, name: `vehicle_${Date.now()}.${ext}`, type: `image/${ext}` }]);
     }
+  };
+
+  const removeExistingImage = (url) => {
+    setRemovedImages(prev => [...prev, url]);
+  };
+
+  const removeNewImage = (index) => {
+    setNewImages(prev => prev.filter((_, i) => i !== index));
   };
 
   const saveEdit = async () => {
@@ -201,12 +225,13 @@ export default function OwnerVehiclesScreen({ navigation }) {
       formData.append('seats', editForm.seats);
       formData.append('year', editForm.year);
       formData.append('features', editForm.features);
-      if (newImage) {
-        formData.append('image', { uri: newImage.uri, name: newImage.name, type: newImage.type });
-      }
-      // Append any newly replaced documents
-      Object.entries(newDocs).forEach(([key, file]) => {
-        formData.append(key, { uri: file.uri, name: file.name, type: file.type });
+
+      // Send removed images list
+      formData.append('removedImages', JSON.stringify(removedImages));
+
+      // Append all new images
+      newImages.forEach((img) => {
+        formData.append('image', { uri: img.uri, name: img.name, type: img.type });
       });
 
       const res = await api.put(`/api/owner/vehicles/${editingVehicle._id}`, formData, {
@@ -382,25 +407,36 @@ export default function OwnerVehiclesScreen({ navigation }) {
                 </View>
               )}
 
-              {/* Image Section */}
-              <Text style={styles.label}>Vehicle Photo</Text>
-              <TouchableOpacity style={styles.imagePickerBox} onPress={pickNewImage} activeOpacity={0.8}>
-                {newImage ? (
-                  <Image source={{ uri: newImage.uri }} style={styles.editImagePreview} resizeMode="cover" />
-                ) : editingVehicle?.imageUrl ? (
-                  <Image source={{ uri: `${BASE_URL}${editingVehicle.imageUrl}` }} style={styles.editImagePreview} resizeMode="cover" />
-                ) : (
-                  <View style={styles.editImagePlaceholder}>
-                    <Text style={{ fontSize: 28 }}>📷</Text>
-                    <Text style={styles.editImagePlaceholderText}>Tap to add photo</Text>
+              {/* Multi-Image Section */}
+              <Text style={styles.label}>Vehicle Photos ({(() => { const kept = existingImages.filter(u => !removedImages.includes(u)).length; return kept + newImages.length; })()}/{MAX_IMAGES})</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.editPhotoScroll}>
+                {existingImages.filter(u => !removedImages.includes(u)).map((url, idx) => (
+                  <View key={`existing-${idx}`} style={styles.editPhotoThumbWrap}>
+                    <Image source={{ uri: `${BASE_URL}${url}` }} style={styles.editPhotoThumb} resizeMode="cover" />
+                    <TouchableOpacity style={styles.editPhotoRemoveBtn} onPress={() => removeExistingImage(url)}>
+                      <MaterialCommunityIcons name="close-circle" size={22} color="#EF4444" />
+                    </TouchableOpacity>
+                    {idx === 0 && removedImages.length === 0 && (
+                      <View style={styles.editPrimaryBadge}><Text style={styles.editPrimaryBadgeText}>COVER</Text></View>
+                    )}
                   </View>
+                ))}
+                {newImages.map((img, idx) => (
+                  <View key={`new-${idx}`} style={[styles.editPhotoThumbWrap, { borderColor: C.success }]}>
+                    <Image source={{ uri: img.uri }} style={styles.editPhotoThumb} resizeMode="cover" />
+                    <TouchableOpacity style={styles.editPhotoRemoveBtn} onPress={() => removeNewImage(idx)}>
+                      <MaterialCommunityIcons name="close-circle" size={22} color="#EF4444" />
+                    </TouchableOpacity>
+                    <View style={[styles.editPrimaryBadge, { backgroundColor: 'rgba(52,211,153,0.85)' }]}><Text style={styles.editPrimaryBadgeText}>NEW</Text></View>
+                  </View>
+                ))}
+                {(existingImages.filter(u => !removedImages.includes(u)).length + newImages.length) < MAX_IMAGES && (
+                  <TouchableOpacity style={styles.editPhotoAddBtn} onPress={pickNewImage} activeOpacity={0.8}>
+                    <MaterialCommunityIcons name="camera-plus-outline" size={28} color={C.primary} />
+                    <Text style={styles.editPhotoAddText}>Add</Text>
+                  </TouchableOpacity>
                 )}
-              </TouchableOpacity>
-              {(newImage || editingVehicle?.imageUrl) && (
-                <TouchableOpacity style={styles.changePhotoBtn} onPress={pickNewImage}>
-                  <Text style={styles.changePhotoText}>{newImage ? '✅ New photo selected — tap to change' : '📸 Tap to replace current photo'}</Text>
-                </TouchableOpacity>
-              )}
+              </ScrollView>
 
               <Text style={styles.label}>Make and Model</Text>
               <TextInputAtom
@@ -679,13 +715,15 @@ const getStyles = (C) => StyleSheet.create({
   warningText:   { color: C.warning, fontSize: 14, lineHeight: 20 },
   label:         { fontSize: 14, fontWeight: '600', color: C.textPrimary, marginBottom: 6, marginTop: 8 },
 
-  // ── Modal Image Picker ──
-  imagePickerBox:     { width: '100%', height: 160, borderRadius: SIZES.radius, overflow: 'hidden', marginBottom: 6, borderWidth: 1.5, borderColor: C.border, borderStyle: 'dashed' },
-  editImagePreview:   { width: '100%', height: '100%' },
-  editImagePlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.background },
-  editImagePlaceholderText: { fontSize: 13, color: C.textMuted, fontWeight: '600', marginTop: 6 },
-  changePhotoBtn:     { alignItems: 'center', paddingVertical: 6, marginBottom: 10 },
-  changePhotoText:    { color: C.primary, fontWeight: '700', fontSize: 13 },
+  // ── Modal Multi-Image Strip ──
+  editPhotoScroll:      { gap: 10, paddingVertical: 6 },
+  editPhotoThumbWrap:   { width: 110, height: 85, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: C.border, position: 'relative' },
+  editPhotoThumb:       { width: '100%', height: '100%' },
+  editPhotoRemoveBtn:   { position: 'absolute', top: 3, right: 3, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 11, width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
+  editPrimaryBadge:     { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: C.primary + '90', paddingVertical: 2, alignItems: 'center' },
+  editPrimaryBadgeText: { color: '#fff', fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  editPhotoAddBtn:      { width: 110, height: 85, borderRadius: 12, borderWidth: 2, borderStyle: 'dashed', borderColor: C.border, backgroundColor: C.background, alignItems: 'center', justifyContent: 'center' },
+  editPhotoAddText:     { color: C.primary, fontWeight: '800', fontSize: 11, marginTop: 4 },
 
   // ── Document Vault ──
   editDocVault:       { marginTop: 18, backgroundColor: C.background, borderRadius: SIZES.radius, padding: 14, borderWidth: 1, borderColor: C.border },

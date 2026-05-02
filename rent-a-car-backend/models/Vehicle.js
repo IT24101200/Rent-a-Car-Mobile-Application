@@ -14,7 +14,8 @@ const vehicleSchema = new mongoose.Schema({
   seats:            { type: Number },
   year:             { type: Number },
   features:         { type: String }, // e.g., "Bluetooth, Sunroof, AC"
-  imageUrl:         { type: String }, // relative path like /uploads/filename.jpg
+  imageUrl:         { type: String }, // primary image (synced with images[0])
+  images:           [{ type: String }], // array of all image URLs
   documents: [{
     docType:    { type: String, enum: ['revenueLicense', 'insurance', 'registration', 'fitness', 'priceJustification'] },
     fileUrl:    { type: String },

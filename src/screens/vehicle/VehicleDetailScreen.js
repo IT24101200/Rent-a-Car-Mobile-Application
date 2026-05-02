@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
-  Alert, ActivityIndicator, Platform, StatusBar, Linking, Dimensions
+  Alert, ActivityIndicator, Platform, StatusBar, Linking, Dimensions, FlatList
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,6 +20,14 @@ export default function VehicleDetailScreen({ route, navigation }) {
   const { user } = useAuth();
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => getStyles(colors), [colors]);
+
+  const { width } = Dimensions.get('window');
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+  // Fallback to array of 1 if vehicle.images isn't present
+  const displayImages = vehicle.images && vehicle.images.length > 0 
+    ? vehicle.images 
+    : (vehicle.imageUrl ? [vehicle.imageUrl] : []);
 
   // Booking State
   const [startDate, setStartDate] = useState(new Date(Date.now() + 60 * 60 * 1000)); // Default to 1 hr from now
@@ -93,17 +101,52 @@ export default function VehicleDetailScreen({ route, navigation }) {
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
         
-        {/* ── Edge-to-Edge Hero Image ───────────────────────────── */}
+        {/* ── Edge-to-Edge Hero Image Carousel ───────────────────────────── */}
         <View style={styles.imageContainer}>
-          {vehicle.imageUrl ? (
-            <Image
-              source={{ uri: `${BASE_URL}${vehicle.imageUrl}` }}
-              style={styles.heroImage}
-              resizeMode="cover"
+          {displayImages.length > 0 ? (
+            <FlatList
+              data={displayImages}
+              keyExtractor={(_, idx) => idx.toString()}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={(event) => {
+                const newIndex = Math.round(event.nativeEvent.contentOffset.x / width);
+                setActiveImageIndex(newIndex);
+              }}
+              renderItem={({ item }) => (
+                <Image
+                  source={{ uri: `${BASE_URL}${item}` }}
+                  style={[styles.heroImage, { width, height: 320 }]}
+                  resizeMode="cover"
+                />
+              )}
             />
           ) : (
-            <View style={styles.heroPlaceholder}>
+            <View style={[styles.heroPlaceholder, { width }]}>
               <Text style={{ fontSize: 60 }}>🚘</Text>
+            </View>
+          )}
+
+          {/* Image Counter Badge */}
+          {displayImages.length > 1 && (
+            <View style={styles.imageCounterBadge}>
+              <Text style={styles.imageCounterText}>{activeImageIndex + 1} / {displayImages.length}</Text>
+            </View>
+          )}
+          
+          {/* Dot Indicators */}
+          {displayImages.length > 1 && (
+            <View style={styles.dotContainer}>
+              {displayImages.map((_, idx) => (
+                <View 
+                  key={idx} 
+                  style={[
+                    styles.dot, 
+                    activeImageIndex === idx ? styles.activeDot : styles.inactiveDot
+                  ]} 
+                />
+              ))}
             </View>
           )}
           {/* Gradient Overlay for Top Area */}
@@ -320,10 +363,19 @@ const getStyles = (C) => StyleSheet.create({
   screen:         { flex: 1, backgroundColor: C.background },
   scrollContent:  { paddingBottom: 250 }, // Extra space for floating bar
   
-  imageContainer: { width: '100%', height: 420, backgroundColor: C.surfaceHighlight, position: 'relative' },
+  imageContainer: { width: '100%', height: 320, backgroundColor: C.surfaceHighlight, position: 'relative' },
   heroImage:      { width: '100%', height: '100%' },
   heroPlaceholder:{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
-  topGradient:    { position: 'absolute', top: 0, left: 0, right: 0, height: 140 },
+  
+  imageCounterBadge: { position: 'absolute', top: Platform.OS === 'ios' ? 65 : 45, right: 20, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, zIndex: 10 },
+  imageCounterText:  { color: '#FFFFFF', fontSize: 12, fontWeight: '800', letterSpacing: 1 },
+  
+  dotContainer:   { flexDirection: 'row', position: 'absolute', bottom: 50, alignSelf: 'center', gap: 8 },
+  dot:            { width: 10, height: 10, borderRadius: 5 },
+  activeDot:      { backgroundColor: '#FFFFFF', width: 28 },
+  inactiveDot:    { backgroundColor: 'rgba(255,255,255,0.4)' },
+  
+  topGradient:    { position: 'absolute', top: 0, left: 0, right: 0, height: 120 },
   backBtn:        { position: 'absolute', top: Platform.OS === 'ios' ? 60 : 40, left: 20, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', zIndex: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)', ...SHADOWS.light },
   backBtnText:    { fontSize: 24, color: '#FFFFFF', fontWeight: '800' },
   
