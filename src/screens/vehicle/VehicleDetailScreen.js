@@ -110,16 +110,19 @@ export default function VehicleDetailScreen({ route, navigation }) {
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
+              style={{ flex: 1 }}
               onMomentumScrollEnd={(event) => {
                 const newIndex = Math.round(event.nativeEvent.contentOffset.x / width);
                 setActiveImageIndex(newIndex);
               }}
               renderItem={({ item }) => (
-                <Image
-                  source={{ uri: `${BASE_URL}${item}` }}
-                  style={[styles.heroImage, { width, height: 320 }]}
-                  resizeMode="cover"
-                />
+                <View style={{ width, height: 320 }}>
+                  <Image
+                    source={{ uri: `${BASE_URL}${item}` }}
+                    style={styles.heroImage}
+                    resizeMode="cover"
+                  />
+                </View>
               )}
             />
           ) : (

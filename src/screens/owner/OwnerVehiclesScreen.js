@@ -580,7 +580,26 @@ export default function OwnerVehiclesScreen({ navigation }) {
                   <View style={[styles.statusBadge, detailItem.validationStatus === 'accepted' ? { backgroundColor: C.successBg } : detailItem.validationStatus === 'rejected' ? { backgroundColor: C.errorBg } : { backgroundColor: C.warningBg }, { alignSelf: 'flex-start', marginVertical: 12 }]}>
                     {getStatusBadge(detailItem.validationStatus)}
                   </View>
-                  {detailItem.imageUrl && <Image source={{uri: BASE_URL + detailItem.imageUrl}} style={{width: '100%', height: 180, borderRadius: 14, marginBottom: 16}} resizeMode="cover" />}
+                  {(() => {
+                    const imgs = detailItem.images && detailItem.images.length > 0
+                      ? detailItem.images
+                      : (detailItem.imageUrl ? [detailItem.imageUrl] : []);
+                    if (imgs.length > 0) {
+                      return (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                          {imgs.map((img, idx) => (
+                            <Image 
+                              key={idx} 
+                              source={{uri: BASE_URL + img}} 
+                              style={{ width: 280, height: 180, borderRadius: 14, marginRight: 10 }} 
+                              resizeMode="cover" 
+                            />
+                          ))}
+                        </ScrollView>
+                      );
+                    }
+                    return null;
+                  })()}
                   
                   {detailItem.validationStatus === 'rejected' && detailItem.rejectionReason && (
                     <View style={{ backgroundColor: C.error+'15', padding: 12, borderRadius: 8, marginBottom: 16, borderWidth: 1, borderColor: C.error }}>
