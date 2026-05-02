@@ -6,7 +6,20 @@ const vehicleSchema = new mongoose.Schema({
   licensePlate:     { type: String, required: true, unique: true },
   pricePerDay:      { type: Number, required: true },
   priceUpdatedAt:   { type: Date, default: Date.now },
- 
+  
+  // New Specifications (Optional for backward compatibility)
+  type:             { type: String, enum: ['Sedan', 'SUV', 'Hatchback', 'Luxury', 'Van'] },
+  transmission:     { type: String, enum: ['Automatic', 'Manual'] },
+  fuelType:         { type: String, enum: ['Petrol', 'Diesel', 'Hybrid', 'EV'] },
+  seats:            { type: Number },
+  year:             { type: Number },
+  features:         { type: String }, // e.g., "Bluetooth, Sunroof, AC"
+  imageUrl:         { type: String }, // relative path like /uploads/filename.jpg
+  documents: [{
+    docType:    { type: String, enum: ['revenueLicense', 'insurance', 'registration', 'fitness', 'priceJustification'] },
+    fileUrl:    { type: String },
+    uploadedAt: { type: Date, default: Date.now }
+  }],
   
   // Status info
   isAvailable:      { type: Boolean, default: true },
