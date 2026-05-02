@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, StatusBar,
+  View, Text, TouchableOpacity,
+  StyleSheet, ScrollView, Alert, KeyboardAvoidingView, Platform, StatusBar,
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import api from '../../api/api';
 import { SIZES, SHADOWS } from '../../theme/theme';
+
+import TextInput from '../../components/atoms/TextInput';
+import Button from '../../components/atoms/Button';
 
 export default function LoginScreen({ navigation }) {
   const { login } = useAuth();
@@ -75,56 +78,42 @@ export default function LoginScreen({ navigation }) {
           <Text style={styles.welcomeSub}>Sign in to continue your journey</Text>
 
           {/* Email */}
-          <Text style={styles.label}>EMAIL ADDRESS</Text>
-          <View style={[styles.inputWrapper, errors.email && styles.inputError]}>
-            <Text style={styles.inputIcon}>✉️</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="you@example.com"
-              placeholderTextColor={colors.textMuted}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              value={email}
-              onChangeText={setEmail}
-            />
-          </View>
-          {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+          <TextInput
+            label="EMAIL ADDRESS"
+            placeholder="you@example.com"
+            type="email"
+            value={email}
+            onChangeText={setEmail}
+            error={errors.email}
+            icon="email-outline"
+          />
 
           {/* Password */}
           <View style={styles.passwordRow}>
-            <Text style={styles.label}>PASSWORD</Text>
-            <TouchableOpacity>
+            <TouchableOpacity style={{ marginLeft: 'auto', marginBottom: 8, zIndex: 10 }}>
               <Text style={styles.forgotText}>Forgot Password?</Text>
             </TouchableOpacity>
           </View>
-          <View style={[styles.inputWrapper, errors.password && styles.inputError]}>
-            <Text style={styles.inputIcon}>🔒</Text>
+          <View style={{ marginTop: -24 }}>
             <TextInput
-              style={styles.input}
+              label="PASSWORD"
               placeholder="••••••••"
-              placeholderTextColor={colors.textMuted}
-              secureTextEntry={!showPass}
+              type="password"
               value={password}
               onChangeText={setPassword}
+              error={errors.password}
+              icon="lock-outline"
             />
-            <TouchableOpacity onPress={() => setShowPass(!showPass)}>
-              <Text style={styles.inputIcon}>{showPass ? '🙈' : '👁️'}</Text>
-            </TouchableOpacity>
           </View>
-          {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
 
           {/* Submit */}
-          <TouchableOpacity
-            style={[styles.btn, loading && styles.btnDisabled]}
+          <Button
+            label="Sign In"
             onPress={handleLogin}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            {loading
-              ? <ActivityIndicator color="#FFFFFF" />
-              : <Text style={styles.btnText}>Sign In</Text>
-            }
-          </TouchableOpacity>
+            loading={loading}
+            size="large"
+            style={{ marginTop: 12 }}
+          />
 
           {/* Footer */}
           <View style={styles.dividerRow}>

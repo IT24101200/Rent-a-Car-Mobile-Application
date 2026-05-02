@@ -5,6 +5,8 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import api, { BASE_URL } from '../../api/api';
 import { useTheme } from '../../context/ThemeContext';
 import { SIZES, SHADOWS } from '../../theme/theme';
@@ -257,10 +259,10 @@ export default function MyBookingsScreen({ navigation }) {
   // ── Renders ───────────────────────────────────────────────────────
   const renderHeader = () => {
     return (
-      <View style={styles.headerBox}>
+      <LinearGradient colors={[colors.headerGradientStart, colors.headerGradientEnd || colors.primary]} style={styles.headerBox}>
         <Text style={styles.title}>My Trips</Text>
 
-        <View style={styles.tabContainer}>
+        <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={styles.tabContainer}>
           <TouchableOpacity style={[styles.tabBtn, activeTab === 'active' && styles.tabBtnActive]} onPress={() => setActiveTab('active')}>
             <Text style={[styles.tabText, activeTab === 'active' && styles.tabTextActive]}>Active ({activeBookingsArr.length})</Text>
           </TouchableOpacity>
@@ -270,8 +272,8 @@ export default function MyBookingsScreen({ navigation }) {
           <TouchableOpacity style={[styles.tabBtn, activeTab === 'history' && styles.tabBtnActive]} onPress={() => setActiveTab('history')}>
             <Text style={[styles.tabText, activeTab === 'history' && styles.tabTextActive]}>History</Text>
           </TouchableOpacity>
-        </View>
-      </View>
+        </BlurView>
+      </LinearGradient>
     );
   };
 
@@ -317,30 +319,32 @@ export default function MyBookingsScreen({ navigation }) {
 
           return (
             <TouchableOpacity style={styles.card} activeOpacity={0.9} onPress={() => setDetailModal(item)}>
-              <View style={styles.cardHeader}>
+              <View>
                 {item.vehicle?.imageUrl ? (
-                  <Image source={{ uri: `${BASE_URL}${item.vehicle?.imageUrl}` }} style={styles.vehicleImg} />
+                  <Image source={{ uri: `${BASE_URL}${item.vehicle?.imageUrl}` }} style={styles.vehicleImg} resizeMode="cover" />
                 ) : (
-                  <View style={styles.vehicleImgPlaceholder}><Text style={{fontSize: 24}}>🚗</Text></View>
+                  <View style={[styles.vehicleImg, { backgroundColor: colors.surfaceHighlight, alignItems: 'center', justifyContent: 'center' }]}><Text style={{fontSize: 40}}>🚘</Text></View>
                 )}
-                <View style={{flex: 1, marginLeft: 16, marginRight: 8, justifyContent: 'center'}}>
+                <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={styles.floatingBadge}>
+                  <View style={[styles.statusDot, { backgroundColor: sc.text }]} />
+                  <Text style={[styles.badgeText, { color: sc.text }]}>{sc.label}</Text>
+                </BlurView>
+              </View>
+
+              <View style={styles.cardContent}>
+                <View style={styles.titleRow}>
                   <Text style={styles.carName} numberOfLines={1}>{item.vehicle?.makeAndModel || 'Vehicle'}</Text>
                   <Text style={styles.licensePlate} numberOfLines={1}>{item.vehicle?.licensePlate || 'N/A'}</Text>
                 </View>
-                <View style={[styles.badge, { backgroundColor: sc.bg }]}>
-                  <View style={[styles.statusDot, { backgroundColor: sc.text }]} />
-                  <Text style={[styles.badgeText, { color: sc.text }]}>{sc.label}</Text>
-                </View>
-              </View>
               
-              <View style={[styles.metaRow, { flexDirection: 'column', alignItems: 'flex-start' }]}>
-                <Text style={styles.detailTitle}>Rental Period</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 10 }}>
-                  <Text style={[styles.detailVal, { fontSize: 12 }]}>{new Date(item.startDate).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</Text>
-                  <Text style={{ color: colors.textMuted, fontSize: 12 }}>→</Text>
-                  <Text style={[styles.detailVal, { fontSize: 12 }]}>{new Date(item.endDate).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</Text>
+                <View style={[styles.metaRow, { flexDirection: 'column', alignItems: 'flex-start' }]}>
+                  <Text style={styles.detailTitle}>Rental Period</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 10 }}>
+                    <Text style={[styles.detailVal, { fontSize: 12 }]}>{new Date(item.startDate).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</Text>
+                    <Text style={{ color: colors.textMuted, fontSize: 12 }}>→</Text>
+                    <Text style={[styles.detailVal, { fontSize: 12 }]}>{new Date(item.endDate).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</Text>
+                  </View>
                 </View>
-              </View>
               
               <View style={[styles.metaRow, { borderBottomWidth: 0, paddingBottom: 0, marginTop: 4 }]}>
                 <Text style={styles.detailTitle}>Total Cost</Text>
@@ -397,7 +401,7 @@ export default function MyBookingsScreen({ navigation }) {
               {item.status === 'completed' && activeTab === 'history' && (
                 <View style={styles.actionRow}>
                   {!item.hasReviewed ? (
-                    <TouchableOpacity style={styles.feedbackBtn} onPress={() => setModal(item)}>
+                    <TouchableOpacity style={styles.feedbackBtn} onPress={() => { setModal(item); setRating(5); setFeedback(''); setFeedbackPhotos([]); }}>
                       <Text style={styles.feedbackBtnText}>Leave Feedback</Text>
                     </TouchableOpacity>
                   ) : (
@@ -407,6 +411,7 @@ export default function MyBookingsScreen({ navigation }) {
                   )}
                 </View>
               )}
+              </View>
             </TouchableOpacity>
           );
         }}
@@ -736,27 +741,27 @@ const getStyles = (C) => StyleSheet.create({
   screen:          { flex: 1, backgroundColor: C.background },
   list:            { paddingBottom: 40 },
   center:          { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.background },
-  headerBox:       { backgroundColor: C.headerGradientStart, paddingHorizontal: 20, paddingTop: 50, paddingBottom: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, marginBottom: 8 },
-  title: { fontSize: 26, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5, marginBottom: 20 },
-  tabContainer:    { flexDirection: 'row', backgroundColor: C.surfaceHighlight, borderRadius: SIZES.radiusPill, padding: 4 },
-  tabBtn:          { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: SIZES.radiusPill },
-  tabBtnActive:    { backgroundColor: C.surface, ...SHADOWS.float },
-  tabText:         { fontSize: 13, fontWeight: '700', color: C.textSecondary },
-  tabTextActive:   { color: C.primary, fontWeight: '800' },
+  headerBox:       { paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 50, paddingBottom: 24, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, marginBottom: 16, ...SHADOWS.float },
+  title: { fontSize: 32, fontWeight: '900', color: '#FFFFFF', letterSpacing: -0.5, marginBottom: 24 },
+  tabContainer:    { flexDirection: 'row', borderRadius: SIZES.radiusPill, padding: 4, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.1)' },
+  tabBtn:          { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: SIZES.radiusPill },
+  tabBtnActive:    { backgroundColor: C.surface, ...SHADOWS.card },
+  tabText:         { fontSize: 13, fontWeight: '800', color: 'rgba(255,255,255,0.7)' },
+  tabTextActive:   { color: C.primary, fontWeight: '900' },
   emptyBox:        { alignItems: 'center', marginTop: 80, paddingHorizontal: 20 },
   emptyEmoji:      { fontSize: 60, marginBottom: 16 },
   emptyTitle:      { fontSize: 18, fontWeight: '800', color: C.textPrimary, marginBottom: 8 },
   emptySub:        { color: C.textSecondary, textAlign: 'center', fontWeight: '500' },
   
-  card:            { backgroundColor: C.surface, borderRadius: SIZES.radius, padding: 20, marginHorizontal: 20, marginBottom: 20, ...SHADOWS.card, borderWidth: 1, borderColor: C.border, overflow: 'hidden' },
-  cardHeader:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
-  vehicleImg:      { width: 64, height: 64, borderRadius: SIZES.radius },
-  vehicleImgPlaceholder: { width: 64, height: 64, borderRadius: SIZES.radius, backgroundColor: C.surfaceHighlight, alignItems: 'center', justifyContent: 'center' },
-  carName:         { fontSize: 18, fontWeight: '800', color: C.textPrimary },
-  licensePlate:    { fontSize: 12, color: C.textMuted, fontWeight: '700', marginTop: 4, letterSpacing: 0.5 },
-  badge:           { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: SIZES.radiusPill, marginLeft: 8 },
-  statusDot:       { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
-  badgeText:       { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  card:            { backgroundColor: C.surface, borderRadius: 24, marginHorizontal: 20, marginBottom: 24, ...SHADOWS.float, borderWidth: 1, borderColor: C.border, overflow: 'hidden' },
+  vehicleImg:      { width: '100%', height: 160 },
+  floatingBadge:   { position: 'absolute', top: 16, right: 16, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: SIZES.radiusPill, overflow: 'hidden' },
+  cardContent:     { padding: 20 },
+  titleRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  carName:         { fontSize: 18, fontWeight: '900', color: C.textPrimary, flex: 1 },
+  licensePlate:    { fontSize: 12, color: C.textMuted, fontWeight: '800', letterSpacing: 1 },
+  statusDot:       { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
+  badgeText:       { fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.5 },
   
   metaRow:         { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: C.border, paddingBottom: 12, marginBottom: 12, alignItems: 'center' },
   detailTitle:     { color: C.textSecondary, fontSize: 13, fontWeight: '600' },

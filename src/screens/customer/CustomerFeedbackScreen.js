@@ -2,11 +2,14 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, StyleSheet, FlatList, ActivityIndicator,
-  RefreshControl, TouchableOpacity, Image, StatusBar, Linking
+  RefreshControl, TouchableOpacity, Image, StatusBar, Linking, Platform
 } from 'react-native';
 import api, { API_URL, BASE_URL } from '../../api/api';
 import { useTheme } from '../../context/ThemeContext';
 import { SIZES, SHADOWS } from '../../theme/theme';
+import { LinearGradient } from 'expo-linear-gradient';
+
+import Card from '../../components/atoms/Card';
 
 export default function CustomerFeedbackScreen() {
   const { colors, isDark } = useTheme();
@@ -39,7 +42,7 @@ export default function CustomerFeedbackScreen() {
     const v = item.vehicle || {};
     const b = item.booking || {};
     return (
-      <View style={S.card}>
+      <Card style={{ marginBottom: 16 }}>
         <View style={S.cardHeader}>
           <View style={S.vehicleInfoRow}>
             {v.imageUrl ? (
@@ -80,7 +83,7 @@ export default function CustomerFeedbackScreen() {
             <Text style={S.replyText}>{item.ownerReply.text}</Text>
           </View>
         )}
-      </View>
+      </Card>
     );
   };
 
@@ -91,10 +94,10 @@ export default function CustomerFeedbackScreen() {
   return (
     <View style={S.screen}>
       <StatusBar barStyle="light-content" backgroundColor={colors.headerGradientStart} />
-      <View style={S.header}>
+      <LinearGradient colors={[colors.headerGradientStart, colors.headerGradientEnd || colors.primary]} style={S.header}>
         <Text style={S.title}>My Reviews</Text>
         <Text style={S.subtitle}>Feedback you have submitted</Text>
-      </View>
+      </LinearGradient>
 
       <FlatList
         data={feedbacks}
@@ -118,26 +121,18 @@ const getStyles = (C, isDark) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.background },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.background },
   header: {
-    backgroundColor: C.headerGradientStart,
-    paddingTop: 50,
-    paddingBottom: 20,
+    paddingTop: Platform.OS === 'ios' ? 70 : 60,
+    paddingBottom: 24,
     paddingHorizontal: 20,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
+    marginBottom: 8,
+    ...SHADOWS.float
   },
   title: { fontSize: 26, fontWeight: '800', color: '#fff', letterSpacing: -0.5 },
   subtitle: { fontSize: 14, color: 'rgba(255,255,255,0.8)', fontWeight: '600', marginTop: 4 },
   listContent: { padding: 16, paddingBottom: 40 },
   
-  card: {
-    backgroundColor: C.surface,
-    borderRadius: SIZES.radius,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: C.border,
-    ...SHADOWS.card
-  },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',

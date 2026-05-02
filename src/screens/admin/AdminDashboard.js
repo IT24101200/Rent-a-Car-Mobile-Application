@@ -4,12 +4,14 @@ import {
   ActivityIndicator, Alert, RefreshControl, Modal, Dimensions, StatusBar, ScrollView
 } from 'react-native';
 import api, { BASE_URL } from '../../api/api';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTheme } from '../../context/ThemeContext';
 import { SIZES, SHADOWS } from '../../theme/theme';
 
 const { width: W, height: H } = Dimensions.get('window');
 const TABS = ['pending','accepted','rejected'];
-const TAB_LABELS = { pending:'⏳ Pending', accepted:'✅ Accepted', rejected:'❌ Rejected' };
+const TAB_LABELS = { pending:'Pending', accepted:'Accepted', rejected:'Rejected' };
+const TAB_ICONS = { pending:'clock-outline', accepted:'check-circle-outline', rejected:'close-circle-outline' };
 
 const DOC_META = [
   { key: 'revenueLicense', label: '🪪 Revenue License' },
@@ -148,25 +150,25 @@ export default function AdminDashboard({ navigation }) {
             <View style={styles.greenHeader}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <View>
-                  <Text style={styles.headerIcon}>🛡️</Text>
                   <Text style={styles.title}>Vehicle Validation</Text>
                   <Text style={styles.sub}>{stats.pending} awaiting review</Text>
                 </View>
                 <TouchableOpacity style={styles.avatarBtn} onPress={() => navigation.navigate('Notifications')}>
-                  <Text style={styles.avatarText}>🔔</Text>
+                  <MaterialCommunityIcons name="bell-outline" size={22} color={colors.primary} />
                 </TouchableOpacity>
               </View>
               <View style={styles.statsRow}>
-                <View style={styles.statBox}><Text style={{fontSize:22,fontWeight:'900',color:'#FBBF24'}}>{stats.pending}</Text><Text style={styles.statLbl}>Pending</Text></View>
-                <View style={styles.statBox}><Text style={{fontSize:22,fontWeight:'900',color:'#4ADE80'}}>{stats.accepted}</Text><Text style={styles.statLbl}>Accepted</Text></View>
-                <View style={styles.statBox}><Text style={{fontSize:22,fontWeight:'900',color:'#F87171'}}>{stats.rejected}</Text><Text style={styles.statLbl}>Rejected</Text></View>
-                <View style={styles.statBox}><Text style={{fontSize:22,fontWeight:'900',color:'#fff'}}>{stats.total}</Text><Text style={styles.statLbl}>Total</Text></View>
+                <View style={styles.statBox}><Text style={{fontSize:22,fontWeight:'900',color:colors.warning}}>{stats.pending}</Text><Text style={styles.statLbl}>Pending</Text></View>
+                <View style={styles.statBox}><Text style={{fontSize:22,fontWeight:'900',color:colors.success}}>{stats.accepted}</Text><Text style={styles.statLbl}>Accepted</Text></View>
+                <View style={styles.statBox}><Text style={{fontSize:22,fontWeight:'900',color:colors.error}}>{stats.rejected}</Text><Text style={styles.statLbl}>Rejected</Text></View>
+                <View style={styles.statBox}><Text style={{fontSize:22,fontWeight:'900',color:colors.textPrimary}}>{stats.total}</Text><Text style={styles.statLbl}>Total</Text></View>
               </View>
             </View>
-            <TextInput style={styles.searchBar} placeholder="🔍 Search by name, plate, owner..." placeholderTextColor={colors.textMuted} value={search} onChangeText={setSearch}/>
+            <TextInput style={styles.searchBar} placeholder="Search by name, plate, owner..." placeholderTextColor={colors.textMuted} value={search} onChangeText={setSearch}/>
             <View style={styles.tabRow}>
               {TABS.map(t => (
                 <TouchableOpacity key={t} style={[styles.tabBtn, tab===t && styles.tabBtnActive]} onPress={()=>setTab(t)}>
+                  <MaterialCommunityIcons name={TAB_ICONS[t]} size={14} color={tab===t ? '#fff' : colors.textSecondary} style={{marginRight: 4}} />
                   <Text style={[styles.tabBtnTxt, tab===t && styles.tabBtnTxtActive]}>{TAB_LABELS[t]} ({stats[t]})</Text>
                 </TouchableOpacity>
               ))}
@@ -294,18 +296,16 @@ const getStyles = (C) => StyleSheet.create({
   list: { paddingBottom:60 },
   center: { flex:1, justifyContent:'center', alignItems:'center', backgroundColor:C.background },
   loadingText: { marginTop:16, color:C.textSecondary, fontWeight:'600', fontSize:15 },
-  greenHeader: { backgroundColor:C.headerGradientStart, paddingTop:50, paddingBottom:20, paddingHorizontal:20, borderBottomLeftRadius:24, borderBottomRightRadius:24 },
-  headerIcon: { fontSize:28, marginBottom:8 },
-  title: { fontSize:26, fontWeight:'800', color:'#fff', letterSpacing:-0.5 },
-  sub: { color:'rgba(255,255,255,0.7)', marginTop:4, fontWeight:'500', fontSize:14 },
-  avatarBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
-  avatarText: { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
+  greenHeader: { backgroundColor:C.surface, paddingTop:56, paddingBottom:20, paddingHorizontal:20, borderBottomWidth:1, borderBottomColor:C.border },
+  title: { fontSize:26, fontWeight:'800', color:C.textPrimary, letterSpacing:-0.5 },
+  sub: { color:C.textSecondary, marginTop:4, fontWeight:'500', fontSize:14 },
+  avatarBtn: { width:44, height:44, borderRadius:22, backgroundColor:C.surfaceHighlight, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:C.border },
   statsRow: { flexDirection:'row', marginTop:16, gap:8 },
-  statBox: { flex:1, backgroundColor:'rgba(255,255,255,0.15)', borderRadius:14, padding:10, alignItems:'center' },
-  statLbl: { fontSize:10, fontWeight:'700', color:'rgba(255,255,255,0.6)', marginTop:4, textTransform:'uppercase', letterSpacing:0.5 },
+  statBox: { flex:1, backgroundColor:C.surfaceHighlight, borderRadius:14, padding:10, alignItems:'center', borderWidth:1, borderColor:C.border },
+  statLbl: { fontSize:10, fontWeight:'700', color:C.textMuted, marginTop:4, textTransform:'uppercase', letterSpacing:0.5 },
   searchBar: { backgroundColor:C.surface, margin:16, marginBottom:8, padding:14, borderRadius:14, fontSize:15, color:C.textPrimary, borderWidth:1.5, borderColor:C.border, fontWeight:'600' },
   tabRow: { flexDirection:'row', gap:8, marginHorizontal:16, marginBottom:12 },
-  tabBtn: { flex:1, paddingVertical:10, borderRadius:14, backgroundColor:C.surfaceHighlight, alignItems:'center', borderWidth:1, borderColor:C.border },
+  tabBtn: { flex:1, paddingVertical:10, borderRadius:14, backgroundColor:C.surfaceHighlight, alignItems:'center', borderWidth:1, borderColor:C.border, flexDirection:'row', justifyContent:'center' },
   tabBtnActive: { backgroundColor:C.primary, borderColor:C.primary },
   tabBtnTxt: { fontSize:12, fontWeight:'800', color:C.textSecondary },
   tabBtnTxtActive: { color:'#fff' },
@@ -356,8 +356,8 @@ const getStyles = (C) => StyleSheet.create({
   noDocsBanner: { marginTop:16, backgroundColor:C.warningBg, borderRadius:SIZES.radius, padding:12, alignItems:'center', borderWidth:1, borderColor:C.warning },
   noDocsText: { color:C.warning, fontWeight:'800', fontSize:13 },
 
-  modalOverlay: { flex:1, backgroundColor:'rgba(0,0,0,0.5)', justifyContent:'center', padding:16 },
-  modalContent: { backgroundColor:C.surface, borderRadius:20, padding:24 },
+  modalOverlay: { flex:1, backgroundColor:'rgba(0,0,0,0.7)', justifyContent:'center', padding:16 },
+  modalContent: { backgroundColor:C.surface, borderRadius:20, padding:24, borderWidth:1, borderColor:C.border },
   modalTitle: { fontSize:22, fontWeight:'900', color:C.textPrimary, letterSpacing:-0.5 },
   modalSub: { fontSize:14, fontWeight:'600', color:C.textSecondary, marginBottom:16 },
   dlLabel: { fontSize:11, fontWeight:'800', color:C.textMuted, marginTop:14, textTransform:'uppercase', letterSpacing:0.8 },

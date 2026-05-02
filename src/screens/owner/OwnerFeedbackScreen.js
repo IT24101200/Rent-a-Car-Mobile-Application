@@ -7,6 +7,11 @@ import api from '../../api/api';
 import { useTheme } from '../../context/ThemeContext';
 import { SIZES, SHADOWS } from '../../theme/theme';
 
+import Card from '../../components/atoms/Card';
+import Chip from '../../components/atoms/Chip';
+import Button from '../../components/atoms/Button';
+import TextInputAtom from '../../components/atoms/TextInput';
+
 export default function OwnerFeedbackScreen() {
   const { colors, isDark } = useTheme();
   const styles = React.useMemo(() => getStyles(colors), [colors]);
@@ -78,7 +83,7 @@ export default function OwnerFeedbackScreen() {
             </View>
 
             {/* Summary Card */}
-            <View style={styles.summaryCard}>
+            <Card style={{ margin: 20 }}>
               <View style={styles.summaryRow}>
                 <View style={styles.summaryItem}>
                   <Text style={styles.summaryValue}>{data.averageRating ?? '—'}</Text>
@@ -102,18 +107,25 @@ export default function OwnerFeedbackScreen() {
                   ))}
                 </View>
               )}
-            </View>
+            </Card>
 
             {/* Filter Chips */}
             {data.vehicles?.length > 1 && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-                <TouchableOpacity style={[styles.chip, filter === 'all' && styles.chipActive]} onPress={() => setFilter('all')} activeOpacity={0.8}>
-                  <Text style={[styles.chipText, filter === 'all' && styles.chipTextActive]}>All Vehicles</Text>
-                </TouchableOpacity>
+                <Chip
+                  label="All Vehicles"
+                  selected={filter === 'all'}
+                  onPress={() => setFilter('all')}
+                  style={{ marginRight: 10 }}
+                />
                 {data.vehicles.map(v => (
-                  <TouchableOpacity key={v._id} style={[styles.chip, filter === v._id && styles.chipActive]} onPress={() => setFilter(v._id)} activeOpacity={0.8}>
-                    <Text style={[styles.chipText, filter === v._id && styles.chipTextActive]}>{v.makeAndModel}</Text>
-                  </TouchableOpacity>
+                  <Chip
+                    key={v._id}
+                    label={v.makeAndModel}
+                    selected={filter === v._id}
+                    onPress={() => setFilter(v._id)}
+                    style={{ marginRight: 10 }}
+                  />
                 ))}
               </ScrollView>
             )}
@@ -132,7 +144,7 @@ export default function OwnerFeedbackScreen() {
           const isLow = item.rating <= 2;
           const isHigh = item.rating === 5;
           return (
-            <View style={[styles.card, isLow && styles.cardLow, isHigh && styles.cardHigh]}>
+            <Card style={[isLow && styles.cardLow, isHigh && styles.cardHigh, { marginHorizontal: 20, marginBottom: 16 }]}>
               {/* Header */}
               <View style={styles.cardHeader}>
                 <View style={styles.starDisplay}>
@@ -162,11 +174,15 @@ export default function OwnerFeedbackScreen() {
                   <Text style={styles.replyDate}>{new Date(item.ownerReply.repliedAt).toLocaleDateString()}</Text>
                 </View>
               ) : (
-                <TouchableOpacity style={styles.replyBtn} onPress={() => { setReplyModal(item); setReplyText(''); }} activeOpacity={0.8}>
-                  <Text style={styles.replyBtnText}>💬 Reply to Customer</Text>
-                </TouchableOpacity>
+                <Button
+                  label="💬 Reply to Customer"
+                  variant="outline"
+                  onPress={() => { setReplyModal(item); setReplyText(''); }}
+                  size="medium"
+                  style={{ marginTop: 10 }}
+                />
               )}
-            </View>
+            </Card>
           );
         }}
       />
@@ -188,23 +204,30 @@ export default function OwnerFeedbackScreen() {
             </View>
 
             <Text style={styles.inputLabel}>Your Response</Text>
-            <TextInput
-              style={styles.replyInput}
+            <TextInputAtom
               placeholder="Thank you for your feedback..."
-              placeholderTextColor={colors.textMuted}
-              multiline
-              numberOfLines={4}
               value={replyText}
               onChangeText={setReplyText}
+              style={{ minHeight: 120, alignItems: 'flex-start' }}
+              multiline
+              numberOfLines={4}
             />
 
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setReplyModal(null)} activeOpacity={0.8}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.submitBtn, replying && { opacity: 0.6 }]} onPress={submitReply} disabled={replying} activeOpacity={0.8}>
-                {replying ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.submitBtnText}>Post Reply</Text>}
-              </TouchableOpacity>
+              <Button
+                label="Cancel"
+                variant="ghost"
+                onPress={() => setReplyModal(null)}
+                style={{ marginRight: 12, flex: 1 }}
+              />
+              <Button
+                label="Post Reply"
+                variant="primary"
+                onPress={submitReply}
+                loading={replying}
+                disabled={replying}
+                style={{ flex: 1 }}
+              />
             </View>
           </View>
         </View>
@@ -232,10 +255,6 @@ const getStyles = (C) => StyleSheet.create({
 
   // Filter Chips
   chipScroll:     { paddingLeft: 20, marginBottom: 12, overflow: 'visible' },
-  chip:           { backgroundColor: C.background, paddingHorizontal: 16, paddingVertical: 10, borderRadius: SIZES.radiusPill, marginRight: 10, borderWidth: 1, borderColor: C.border },
-  chipActive:     { backgroundColor: C.primary, borderColor: C.primary, ...SHADOWS.float },
-  chipText:       { fontSize: 13, fontWeight: '700', color: C.textSecondary },
-  chipTextActive: { color: '#FFFFFF' },
 
   sectionTitle:   { fontSize: 18, fontWeight: '900', color: C.textPrimary, paddingHorizontal: 20, marginTop: 12, marginBottom: 8, letterSpacing: -0.2 },
 
@@ -246,7 +265,6 @@ const getStyles = (C) => StyleSheet.create({
   emptySub:       { color: C.textSecondary, marginTop: 8, textAlign: 'center', fontSize: 14, fontWeight: '500', lineHeight: 20 },
 
   // Card
-  card:           { backgroundColor: C.surface, borderRadius: SIZES.radius, padding: 20, marginHorizontal: 20, marginBottom: 16, ...SHADOWS.card, borderWidth: 1, borderColor: C.border },
   cardLow:        { borderColor: C.error, backgroundColor: C.error + '10' },
   cardHigh:       { borderColor: C.success, backgroundColor: C.success + '10' },
   cardHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
@@ -262,8 +280,6 @@ const getStyles = (C) => StyleSheet.create({
   replyLabel:     { fontSize: 12, fontWeight: '900', color: C.primary, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
   replyText:      { fontSize: 14, color: C.textPrimary, lineHeight: 22, fontWeight: '500' },
   replyDate:      { fontSize: 11, color: C.textSecondary, marginTop: 8, fontWeight: '600' },
-  replyBtn:       { backgroundColor: C.background, paddingVertical: 14, borderRadius: SIZES.radius, alignItems: 'center', borderWidth: 1, borderColor: C.border },
-  replyBtnText:   { color: C.primary, fontWeight: '800', fontSize: 14 },
 
   // Modal
   modalOverlay:   { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', padding: 20 },
@@ -273,10 +289,5 @@ const getStyles = (C) => StyleSheet.create({
   originalReview: { backgroundColor: C.surfaceHighlight, padding: 16, borderRadius: SIZES.radius, marginBottom: 20, borderWidth: 1, borderColor: C.border },
   originalComment:{ fontSize: 14, color: C.textPrimary, fontStyle: 'italic', marginTop: 10, lineHeight: 20, fontWeight: '500' },
   inputLabel:     { fontSize: 13, fontWeight: '800', color: C.textPrimary, marginBottom: 8, letterSpacing: -0.2 },
-  replyInput:     { borderWidth: 1, borderColor: C.border, borderRadius: SIZES.radius, padding: 16, fontSize: 15, color: C.textPrimary, minHeight: 120, textAlignVertical: 'top', marginBottom: 24, backgroundColor: C.background },
-  modalActions:   { flexDirection: 'row', justifyContent: 'flex-end' },
-  cancelBtn:      { paddingVertical: 14, paddingHorizontal: 20, borderRadius: SIZES.radius, marginRight: 12 },
-  cancelBtnText:  { color: C.textSecondary, fontWeight: '800', fontSize: 14 },
-  submitBtn:      { backgroundColor: C.primary, borderRadius: SIZES.radius, paddingVertical: 14, paddingHorizontal: 24, alignItems: 'center', ...SHADOWS.float },
-  submitBtnText:  { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },
+  modalActions:   { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 },
 });

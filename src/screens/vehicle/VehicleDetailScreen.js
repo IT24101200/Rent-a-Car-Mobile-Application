@@ -1,13 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
-  Alert, ActivityIndicator, Platform, StatusBar, Linking
+  Alert, ActivityIndicator, Platform, StatusBar, Linking, Dimensions
 } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import api, { BASE_URL, API_URL } from '../../api/api';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { SIZES, SHADOWS } from '../../theme/theme';
+
+import Card from '../../components/atoms/Card';
+import Badge from '../../components/atoms/Badge';
+import Button from '../../components/atoms/Button';
 
 export default function VehicleDetailScreen({ route, navigation }) {
   const { vehicle } = route.params;
@@ -84,14 +90,11 @@ export default function VehicleDetailScreen({ route, navigation }) {
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.surface} />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
         
-        {/* ── Hero Image ────────────────────────────────────────── */}
+        {/* ── Edge-to-Edge Hero Image ───────────────────────────── */}
         <View style={styles.imageContainer}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.backBtnText}>←</Text>
-          </TouchableOpacity>
           {vehicle.imageUrl ? (
             <Image
               source={{ uri: `${BASE_URL}${vehicle.imageUrl}` }}
@@ -103,17 +106,26 @@ export default function VehicleDetailScreen({ route, navigation }) {
               <Text style={{ fontSize: 60 }}>🚘</Text>
             </View>
           )}
+          {/* Gradient Overlay for Top Area */}
+          <LinearGradient 
+            colors={['rgba(0,0,0,0.7)', 'transparent']} 
+            style={styles.topGradient}
+          />
+          {/* Back Button */}
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+            <Text style={styles.backBtnText}>←</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* ── Title Block ───────────────────────────────────────── */}
+        {/* ── Title Block (Shifted up to overlap image slightly) ── */}
         <View style={styles.titleSection}>
           <View style={styles.titleHeader}>
             <Text style={styles.vehicleTitle}>{vehicle.makeAndModel}</Text>
-            <View style={[styles.statusBadge, { backgroundColor: vehicle.isCurrentlyBooked ? colors.warning : (vehicle.isAvailable ? colors.success : colors.error) }]}>
-              <Text style={styles.statusBadgeText}>
-                {vehicle.isCurrentlyBooked ? 'Booked' : (vehicle.isAvailable ? 'Available' : 'Unavailable')}
-              </Text>
-            </View>
+            <Badge 
+              label={vehicle.isCurrentlyBooked ? 'Booked' : (vehicle.isAvailable ? 'Available' : 'Unavailable')}
+              variant={vehicle.isCurrentlyBooked ? 'warning' : (vehicle.isAvailable ? 'success' : 'error')}
+              style={{ marginLeft: 12 }}
+            />
           </View>
           <View style={styles.priceRow}>
             <Text style={styles.priceText}>Rs. {vehicle.pricePerDay.toLocaleString()}</Text>
@@ -154,7 +166,7 @@ export default function VehicleDetailScreen({ route, navigation }) {
         </ScrollView>
 
         {/* ── Details Card ──────────────────────────────────────── */}
-        <View style={styles.detailsCard}>
+        <Card style={{ marginHorizontal: 20, marginBottom: 32 }}>
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Manufacture Year</Text>
             <Text style={styles.detailValue}>{vehicle.year || 'N/A'}</Text>
@@ -174,7 +186,7 @@ export default function VehicleDetailScreen({ route, navigation }) {
               </View>
             </>
           ) : null}
-        </View>
+        </Card>
 
         {/* ── Reviews ───────────────────────────────────────────── */}
         <View style={[styles.sectionHeader, { marginTop: 12 }]}>
@@ -200,7 +212,7 @@ export default function VehicleDetailScreen({ route, navigation }) {
 
             {/* List */}
             {reviews.map(r => (
-              <View key={r._id} style={styles.reviewCard}>
+              <Card key={r._id} style={{ marginBottom: 12 }}>
                 <View style={styles.reviewHeader}>
                   <Text style={styles.reviewAuthor}>{r.user?.name || 'Verified Customer'}</Text>
                   <View style={styles.starRow}>
@@ -229,7 +241,7 @@ export default function VehicleDetailScreen({ route, navigation }) {
                     <Text style={styles.ownerReplyText}>{r.ownerReply.text}</Text>
                   </View>
                 )}
-              </View>
+              </Card>
             ))}
           </View>
         ) : (
@@ -241,9 +253,9 @@ export default function VehicleDetailScreen({ route, navigation }) {
 
       </ScrollView>
 
-      {/* ── Checkout Footer ─────────────────────────────────────── */}
+      {/* ── Checkout Footer (Floating Glass Bar) ─────────────── */}
       {vehicle.isAvailable && (
-        <View style={styles.checkoutFooter}>
+        <BlurView intensity={90} tint={isDark ? "dark" : "light"} style={styles.checkoutFooter}>
           <Text style={styles.checkoutTitle}>Rental Horizon</Text>
           
           <View style={styles.pickerRow}>
@@ -251,7 +263,7 @@ export default function VehicleDetailScreen({ route, navigation }) {
             <View style={styles.pickerBlock}>
               <Text style={styles.pickerLabel}>PICK-UP</Text>
               {Platform.OS === 'ios' ? (
-                <DateTimePicker value={startDate} mode="datetime" display="default" minimumDate={new Date()} onChange={(e, d) => d && setStartDate(d)} />
+                <DateTimePicker value={startDate} mode="datetime" display="default" themeVariant={isDark ? "dark" : "light"} minimumDate={new Date()} onChange={(e, d) => d && setStartDate(d)} />
               ) : (
                 <View style={{flexDirection: 'row', gap: 4}}>
                   <TouchableOpacity style={styles.dateBtn} onPress={() => setShowStartPicker(true)}>
@@ -270,7 +282,7 @@ export default function VehicleDetailScreen({ route, navigation }) {
             <View style={styles.pickerBlock}>
               <Text style={styles.pickerLabel}>DROP-OFF</Text>
               {Platform.OS === 'ios' ? (
-                <DateTimePicker value={endDate} mode="datetime" display="default" minimumDate={startDate} onChange={(e, d) => d && setEndDate(d)} />
+                <DateTimePicker value={endDate} mode="datetime" display="default" themeVariant={isDark ? "dark" : "light"} minimumDate={startDate} onChange={(e, d) => d && setEndDate(d)} />
               ) : (
                 <View style={{flexDirection: 'row', gap: 4}}>
                   <TouchableOpacity style={styles.dateBtn} onPress={() => setShowEndPicker(true)}>
@@ -290,24 +302,15 @@ export default function VehicleDetailScreen({ route, navigation }) {
           {showEndPicker && <DateTimePicker value={endDate} mode="date" display="default" minimumDate={startDate} onChange={(e, d) => { setShowEndPicker(false); if (d) { const nd = new Date(endDate); nd.setFullYear(d.getFullYear(), d.getMonth(), d.getDate()); setEndDate(nd); } }} />}
           {showEndTimePicker && <DateTimePicker value={endDate} mode="time" display="default" onChange={(e, d) => { setShowEndTimePicker(false); if (d) { const nd = new Date(endDate); nd.setHours(d.getHours(), d.getMinutes()); setEndDate(nd); } }} />}
 
-          <TouchableOpacity 
-            style={[styles.submitBtn, (bookingLoading || vehicle.isCurrentlyBooked) && {opacity: 0.8}]} 
-            onPress={submitBooking} 
-            disabled={bookingLoading || vehicle.isCurrentlyBooked}
-            activeOpacity={0.8}
-          >
-            {bookingLoading ? (
-              <ActivityIndicator color={colors.surface} />
-            ) : vehicle.isCurrentlyBooked ? (
-              <Text style={styles.submitBtnText}>Currently Unavailable</Text>
-            ) : (
-              <View style={styles.btnContentRow}>
-                <Text style={styles.submitBtnText}>Review & Book</Text>
-                <Text style={styles.btnPriceOverlay}>Rs. {(calculateDays() * vehicle.pricePerDay).toLocaleString()}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
+          <Button 
+            label={vehicle.isCurrentlyBooked ? 'Currently Unavailable' : `Review & Book • Rs. ${(calculateDays() * vehicle.pricePerDay).toLocaleString()}`}
+            onPress={submitBooking}
+            loading={bookingLoading}
+            disabled={vehicle.isCurrentlyBooked}
+            size="large"
+            style={styles.bookBtn}
+          />
+        </BlurView>
       )}
     </View>
   );
@@ -315,71 +318,63 @@ export default function VehicleDetailScreen({ route, navigation }) {
 
 const getStyles = (C) => StyleSheet.create({
   screen:         { flex: 1, backgroundColor: C.background },
-  scrollContent:  { paddingBottom: 30 },
+  scrollContent:  { paddingBottom: 250 }, // Extra space for floating bar
   
-  imageContainer: { width: '100%', height: 320, backgroundColor: C.surfaceHighlight, position: 'relative' },
+  imageContainer: { width: '100%', height: 420, backgroundColor: C.surfaceHighlight, position: 'relative' },
   heroImage:      { width: '100%', height: '100%' },
   heroPlaceholder:{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
-  backBtn:        { position: 'absolute', top: Platform.OS === 'ios' ? 50 : 20, left: 20, width: 44, height: 44, borderRadius: 22, backgroundColor: C.surface, opacity: 0.9, justifyContent: 'center', alignItems: 'center', zIndex: 10, ...SHADOWS.card },
-  backBtnText:    { fontSize: 24, color: C.textPrimary, fontWeight: '600' },
+  topGradient:    { position: 'absolute', top: 0, left: 0, right: 0, height: 140 },
+  backBtn:        { position: 'absolute', top: Platform.OS === 'ios' ? 60 : 40, left: 20, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', zIndex: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)', ...SHADOWS.light },
+  backBtnText:    { fontSize: 24, color: '#FFFFFF', fontWeight: '800' },
   
-  titleSection:   { padding: 24, backgroundColor: C.surface, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, ...SHADOWS.card, marginBottom: 24 },
+  titleSection:   { padding: 24, backgroundColor: C.surface, borderTopLeftRadius: 32, borderTopRightRadius: 32, marginTop: -32, ...SHADOWS.float, marginBottom: 24 },
   titleHeader:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
-  vehicleTitle:   { fontSize: 26, fontWeight: '900', color: C.textPrimary, flex: 1, letterSpacing: -0.5 },
-  statusBadge:    { paddingHorizontal: 12, paddingVertical: 6, borderRadius: SIZES.radiusPill, marginLeft: 12 },
-  statusBadgeText:{ color: '#FFFFFF', fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  vehicleTitle:   { fontSize: 28, fontWeight: '900', color: C.textPrimary, flex: 1, letterSpacing: -0.5 },
   priceRow:       { flexDirection: 'row', alignItems: 'baseline' },
-  priceText:      { fontSize: 24, fontWeight: '800', color: C.primary },
-  priceSub:       { fontSize: 15, color: C.textSecondary, fontWeight: '600' },
+  priceText:      { fontSize: 28, fontWeight: '900', color: C.primary },
+  priceSub:       { fontSize: 16, color: C.textSecondary, fontWeight: '700' },
   
   sectionHeader:  { paddingHorizontal: 24, marginBottom: 12 },
-  sectionTitle:   { fontSize: 18, fontWeight: '800', color: C.textPrimary, letterSpacing: -0.2 },
+  sectionTitle:   { fontSize: 20, fontWeight: '900', color: C.textPrimary, letterSpacing: -0.2 },
   
   specHScroll:    { paddingHorizontal: 20, paddingBottom: 16 },
-  specItem:       { width: 100, height: 110, backgroundColor: C.surface, borderRadius: SIZES.radius, padding: 16, marginRight: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border, ...SHADOWS.card },
-  specIcon:       { fontSize: 28, marginBottom: 8 },
-  specLabel:      { fontSize: 10, color: C.textSecondary, fontWeight: '700', textTransform: 'uppercase', marginBottom: 4 },
-  specValue:      { fontSize: 14, color: C.textPrimary, fontWeight: '800' },
+  specItem:       { width: 110, height: 120, backgroundColor: C.surface, borderRadius: 24, padding: 16, marginRight: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border, ...SHADOWS.card },
+  specIcon:       { fontSize: 32, marginBottom: 12 },
+  specLabel:      { fontSize: 11, color: C.textSecondary, fontWeight: '800', textTransform: 'uppercase', marginBottom: 4, letterSpacing: 0.5 },
+  specValue:      { fontSize: 15, color: C.textPrimary, fontWeight: '900' },
   
-  detailsCard:    { marginHorizontal: 20, backgroundColor: C.surface, borderRadius: SIZES.radius, padding: 20, marginBottom: 32, borderWidth: 1, borderColor: C.border, ...SHADOWS.card },
   detailRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  detailLabel:    { fontSize: 13, color: C.textSecondary, fontWeight: '600' },
-  detailValue:    { fontSize: 15, color: C.textPrimary, fontWeight: '800' },
+  detailLabel:    { fontSize: 14, color: C.textSecondary, fontWeight: '700' },
+  detailValue:    { fontSize: 16, color: C.textPrimary, fontWeight: '900' },
   detailLine:     { height: 1, backgroundColor: C.border, marginVertical: 16 },
   detailGroup:    { flexDirection: 'column' },
-  featuresText:   { fontSize: 15, color: C.textPrimary, lineHeight: 24, marginTop: 8 },
+  featuresText:   { fontSize: 15, color: C.textPrimary, lineHeight: 24, marginTop: 8, fontWeight: '500' },
   
   reviewContainer:{ paddingHorizontal: 20, marginBottom: 24 },
-  avgRatingCard:  { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surfaceHighlight, padding: 20, borderRadius: SIZES.radius, marginBottom: 16, borderWidth: 1, borderColor: C.success + '80' },
-  avgRatingValue: { fontSize: 44, fontWeight: '900', color: C.success },
+  avgRatingCard:  { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surfaceHighlight, padding: 24, borderRadius: 24, marginBottom: 16, borderWidth: 1, borderColor: C.success + '80', ...SHADOWS.card },
+  avgRatingValue: { fontSize: 48, fontWeight: '900', color: C.success },
   starRow:        { flexDirection: 'row', gap: 2 },
-  avgRatingLabel: { color: C.textSecondary, fontSize: 12, fontWeight: '600', marginTop: 6 },
+  avgRatingLabel: { color: C.textSecondary, fontSize: 13, fontWeight: '700', marginTop: 6 },
   
-  reviewCard:     { backgroundColor: C.surface, borderRadius: SIZES.radius, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: C.border, ...SHADOWS.card },
   reviewHeader:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  reviewAuthor:   { fontSize: 14, fontWeight: '800', color: C.textPrimary },
-  reviewComment:  { fontSize: 14, color: C.textSecondary, lineHeight: 22, fontStyle: 'italic', marginBottom: 12 },
-  reviewDate:     { fontSize: 12, color: C.textMuted, fontWeight: '600' },
-  ownerReplyBox:  { backgroundColor: C.surfaceHighlight, padding: 12, borderRadius: 8, marginTop: 16, borderLeftWidth: 3, borderLeftColor: C.primary },
-  ownerReplyLabel:{ fontSize: 11, fontWeight: '800', color: C.primary, textTransform: 'uppercase', marginBottom: 6 },
-  ownerReplyText: { fontSize: 13, color: C.textPrimary, lineHeight: 20 },
+  reviewAuthor:   { fontSize: 15, fontWeight: '900', color: C.textPrimary },
+  reviewComment:  { fontSize: 15, color: C.textSecondary, lineHeight: 24, fontStyle: 'italic', marginBottom: 12, fontWeight: '500' },
+  reviewDate:     { fontSize: 12, color: C.textMuted, fontWeight: '700' },
+  ownerReplyBox:  { backgroundColor: C.surfaceHighlight, padding: 16, borderRadius: 12, marginTop: 16, borderLeftWidth: 4, borderLeftColor: C.primary },
+  ownerReplyLabel:{ fontSize: 12, fontWeight: '900', color: C.primary, textTransform: 'uppercase', marginBottom: 6, letterSpacing: 0.5 },
+  ownerReplyText: { fontSize: 14, color: C.textPrimary, lineHeight: 22, fontWeight: '500' },
   
-  noReviews:      { alignItems: 'center', marginVertical: 32 },
-  noReviewsIcon:  { fontSize: 32, marginBottom: 12 },
-  noReviewsText:  { color: C.textMuted, fontWeight: '600', fontSize: 14 },
+  noReviews:      { alignItems: 'center', marginVertical: 40 },
+  noReviewsIcon:  { fontSize: 40, marginBottom: 16 },
+  noReviewsText:  { color: C.textMuted, fontWeight: '700', fontSize: 15 },
   
-  checkoutFooter: { backgroundColor: C.surface, padding: 20, paddingTop: 16, paddingBottom: Platform.OS === 'ios' ? 34 : 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, ...SHADOWS.float, borderTopWidth: 1, borderTopColor: C.border },
-  checkoutTitle:  { fontSize: 13, fontWeight: '800', color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 16 },
-  pickerRow:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 },
+  checkoutFooter: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 24, paddingTop: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 24, borderTopWidth: 1, borderTopColor: C.border },
+  checkoutTitle:  { fontSize: 12, fontWeight: '900', color: C.primary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16 },
+  pickerRow:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
   pickerBlock:    { flex: 1 },
-  pickerLabel:    { fontSize: 10, color: C.textSecondary, fontWeight: '800', marginBottom: 6 },
-  dateBtn:        { flex: 1, backgroundColor: C.background, height: 40, borderRadius: 8, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: C.border },
-  dateBtnText:    { color: C.textPrimary, fontWeight: '700', fontSize: 13 },
-  pickerDivider:  { paddingHorizontal: 12 },
-  pickerDividerText:{ color: C.textMuted, fontSize: 12, fontWeight: '600' },
-  
-  submitBtn:      { backgroundColor: C.primary, height: 56, borderRadius: SIZES.radius, justifyContent: 'center', alignItems: 'center', ...SHADOWS.float },
-  submitBtnText:  { color: '#FFFFFF', fontWeight: '800', fontSize: 16 },
-  btnContentRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', paddingHorizontal: 24 },
-  btnPriceOverlay:{ color: '#FFFFFF', fontWeight: '800', fontSize: 16, opacity: 0.9, backgroundColor: 'rgba(0,0,0,0.2)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 8 }
+  pickerLabel:    { fontSize: 11, color: C.textSecondary, fontWeight: '900', marginBottom: 8, letterSpacing: 0.5 },
+  dateBtn:        { flex: 1, backgroundColor: C.surface, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: C.border, ...SHADOWS.light },
+  dateBtnText:    { color: C.textPrimary, fontWeight: '800', fontSize: 14 },
+  pickerDividerText:{ color: C.textMuted, fontSize: 13, fontWeight: '700' },
+  bookBtn:        { ...SHADOWS.float }
 });

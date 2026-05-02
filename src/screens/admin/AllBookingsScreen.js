@@ -9,6 +9,12 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { SIZES, SHADOWS } from '../../theme/theme';
 
+import Card from '../../components/atoms/Card';
+import Badge from '../../components/atoms/Badge';
+import Button from '../../components/atoms/Button';
+import TextInputAtom from '../../components/atoms/TextInput';
+import Chip from '../../components/atoms/Chip';
+
 const TABS = ['all','confirmed','active','returning','completed','cancelled'];
 const TAB_LABELS = { all:'All', confirmed:'Confirmed', active:'Active', returning:'Returning', completed:'Done', cancelled:'Cancelled' };
 const VALID_STATUSES = ['pending','confirmed','active','returning','completed','cancelled'];
@@ -102,12 +108,19 @@ export default function AllBookingsScreen() {
   );
 
   const renderCard = ({item}) => {
-    const sc = SC[item.status] || SC.pending;
     return (
-      <TouchableOpacity style={S.card} activeOpacity={0.85} onPress={() => setDetailItem(item)}>
+      <Card pressable onPress={() => setDetailItem(item)} style={{ marginHorizontal: 16, marginBottom: 12 }}>
         <View style={S.cardHead}>
           <Text style={S.cardVehicle} numberOfLines={1}>{item.vehicle?.makeAndModel||'Unknown'}</Text>
-          <View style={[S.badge,{backgroundColor:sc.bg}]}><Text style={[S.badgeTxt,{color:sc.tx}]}>{item.status.toUpperCase()}</Text></View>
+          <Badge 
+            label={item.status.toUpperCase()}
+            variant={
+              item.status === 'completed' ? 'primary' : 
+              item.status === 'cancelled' ? 'error' : 
+              item.status === 'returning' ? 'warning' : 
+              item.status === 'active' ? 'success' : 'primary'
+            }
+          />
         </View>
         {item.vehicle?.licensePlate && <Text style={S.plate}>🚘 {item.vehicle.licensePlate}</Text>}
         <Text style={S.cardDetail}>👤 {item.user?.name||'N/A'} ({item.user?.email||''})</Text>
@@ -131,21 +144,17 @@ export default function AllBookingsScreen() {
           <Text style={S.cardId}>ID: {item._id.slice(-6).toUpperCase()}</Text>
           <View style={{flexDirection:'row',gap:8}}>
             {canManage && !['cancelled','completed'].includes(item.status) && (
-              <TouchableOpacity style={S.actBtn} onPress={()=>openEdit(item)}><Text style={S.actBtnTxt}>✏️ Edit</Text></TouchableOpacity>
+              <Button label="✏️ Edit" size="compact" variant="ghost" onPress={()=>openEdit(item)} style={{borderWidth: 1, borderColor: colors.primary+'30'}} />
             )}
             {canManage && !['cancelled','completed'].includes(item.status) && (
-              <TouchableOpacity style={[S.actBtn,{backgroundColor:colors.error}]} onPress={()=>doForceCancel(item._id)} disabled={actionId===item._id}>
-                <Text style={[S.actBtnTxt,{color:'#fff'}]}>Cancel</Text>
-              </TouchableOpacity>
+              <Button label="Cancel" size="compact" variant="danger" onPress={()=>doForceCancel(item._id)} disabled={actionId===item._id} />
             )}
             {canManage && ['cancelled','completed'].includes(item.status) && (
-              <TouchableOpacity style={[S.actBtn,{backgroundColor:colors.error+'15',borderColor:colors.error+'30'}]} onPress={()=>doDelete(item._id)} disabled={actionId===item._id}>
-                <Text style={[S.actBtnTxt,{color:colors.error}]}>🗑️</Text>
-              </TouchableOpacity>
+              <Button label="🗑️" size="compact" variant="ghost" onPress={()=>doDelete(item._id)} disabled={actionId===item._id} textStyle={{color: colors.error}} style={{backgroundColor: colors.error+'15'}} />
             )}
           </View>
         </View>
-      </TouchableOpacity>
+      </Card>
     );
   };
 
@@ -169,12 +178,17 @@ export default function AllBookingsScreen() {
                 <StatBox emoji="❌" label="Cancel" value={`${stats.cancelRate}%`} color="#F87171"/>
               </View>
             </View>
-            <TextInput style={S.searchBar} placeholder="🔍 Search by name, vehicle, ID..." placeholderTextColor={colors.textMuted} value={search} onChangeText={setSearch}/>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={S.tabScroll} contentContainerStyle={{gap:8,paddingHorizontal:4}}>
+            <View style={{ paddingHorizontal: 16, marginBottom: 8, marginTop: 4 }}>
+              <TextInputAtom placeholder="🔍 Search by name, vehicle, ID..." value={search} onChangeText={setSearch} />
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={S.tabScroll} contentContainerStyle={{gap:8,paddingHorizontal:16}}>
               {TABS.map(t=>(
-                <TouchableOpacity key={t} style={[S.tab,tab===t&&S.tabActive]} onPress={()=>setTab(t)}>
-                  <Text style={[S.tabTxt,tab===t&&S.tabTxtActive]}>{TAB_LABELS[t]} {t!=='all'?`(${bookings.filter(b=>b.status===t).length})`:''}</Text>
-                </TouchableOpacity>
+                <Chip 
+                  key={t}
+                  label={`${TAB_LABELS[t]} ${t!=='all'?`(${bookings.filter(b=>b.status===t).length})`:''}`}
+                  selected={tab === t}
+                  onPress={()=>setTab(t)}
+                />
               ))}
             </ScrollView>
           </View>
@@ -190,7 +204,16 @@ export default function AllBookingsScreen() {
             <ScrollView>
               <Text style={S.modalTitle}>📋 Booking Details</Text>
               {detailItem && (<>
-                <View style={[S.badge,{backgroundColor:(SC[detailItem.status]||SC.pending).bg,alignSelf:'flex-start',marginBottom:16}]}><Text style={[S.badgeTxt,{color:(SC[detailItem.status]||SC.pending).tx}]}>{detailItem.status.toUpperCase()}</Text></View>
+                <Badge 
+                  label={detailItem.status.toUpperCase()}
+                  variant={
+                    detailItem.status === 'completed' ? 'primary' : 
+                    detailItem.status === 'cancelled' ? 'error' : 
+                    detailItem.status === 'returning' ? 'warning' : 
+                    detailItem.status === 'active' ? 'success' : 'primary'
+                  }
+                  style={{ alignSelf: 'flex-start', marginBottom: 16 }}
+                />
                 <Text style={S.dlLabel}>Vehicle</Text>
                 <Text style={S.dlValue}>{detailItem.vehicle?.makeAndModel||'Unknown'} {detailItem.vehicle?.licensePlate?`(${detailItem.vehicle.licensePlate})`:''}</Text>
                 <Text style={S.dlLabel}>Customer</Text>
@@ -220,7 +243,7 @@ export default function AllBookingsScreen() {
                 <Text style={S.dlValue}>{new Date(detailItem.createdAt).toLocaleString()}</Text>
               </>)}
             </ScrollView>
-            <TouchableOpacity style={S.modalClose} onPress={()=>setDetailItem(null)}><Text style={S.modalCloseTxt}>Close</Text></TouchableOpacity>
+            <Button label="Close" variant="ghost" onPress={()=>setDetailItem(null)} style={{ marginTop: 16 }} />
           </View>
         </View>
       </Modal>
@@ -236,14 +259,10 @@ export default function AllBookingsScreen() {
               <Text style={S.dlLabel}>Change Status</Text>
               <View style={{flexDirection:'row',flexWrap:'wrap',gap:8,marginBottom:16}}>
                 {VALID_STATUSES.map(st=>(
-                  <TouchableOpacity key={st} style={[S.statusChip,editStatus===st&&{backgroundColor:colors.primary,borderColor:colors.primary}]} onPress={()=>setEditStatus(st)}>
-                    <Text style={[S.statusChipTxt,editStatus===st&&{color:'#fff'}]}>{st}</Text>
-                  </TouchableOpacity>
+                  <Chip key={st} label={st.charAt(0).toUpperCase() + st.slice(1)} selected={editStatus===st} onPress={()=>setEditStatus(st)} />
                 ))}
               </View>
-              <TouchableOpacity style={[S.saveBtn,actionId==='edit'&&{opacity:0.5}]} onPress={doChangeStatus} disabled={actionId==='edit'}>
-                {actionId==='edit'?<ActivityIndicator size="small" color="#fff"/>:<Text style={S.saveBtnTxt}>Update Status</Text>}
-              </TouchableOpacity>
+              <Button label="Update Status" onPress={doChangeStatus} loading={actionId==='edit'} disabled={actionId==='edit'} />
 
               <View style={S.divider}/>
 
@@ -256,11 +275,9 @@ export default function AllBookingsScreen() {
               </TouchableOpacity>
               {pickStart && <DateTimePicker value={editStart} mode="date" onChange={(e,d)=>{setPickStart(false);if(d)setEditStart(d);}}/>}
               {pickEnd && <DateTimePicker value={editEnd} mode="date" onChange={(e,d)=>{setPickEnd(false);if(d)setEditEnd(d);}}/>}
-              <TouchableOpacity style={[S.saveBtn,{backgroundColor:colors.success},actionId==='edit'&&{opacity:0.5}]} onPress={doReschedule} disabled={actionId==='edit'}>
-                <Text style={S.saveBtnTxt}>Reschedule & Recalculate</Text>
-              </TouchableOpacity>
+              <Button label="Reschedule & Recalculate" onPress={doReschedule} loading={actionId==='edit'} disabled={actionId==='edit'} style={{ backgroundColor: colors.success, marginTop: 12 }} />
             </ScrollView>
-            <TouchableOpacity style={S.modalClose} onPress={()=>setEditItem(null)}><Text style={S.modalCloseTxt}>Cancel</Text></TouchableOpacity>
+            <Button label="Cancel" variant="ghost" onPress={()=>setEditItem(null)} style={{ marginTop: 8 }} />
           </View>
         </View>
       </Modal>
@@ -279,25 +296,16 @@ const getStyles = (C, isDark) => StyleSheet.create({
   statBox: { flex:1, backgroundColor:'rgba(255,255,255,0.15)', borderRadius:14, padding:10, alignItems:'center' },
   statVal: { fontSize:18, fontWeight:'900', marginTop:4, color:'#fff' },
   statLbl: { fontSize:10, fontWeight:'700', color:'rgba(255,255,255,0.6)', marginTop:2, textTransform:'uppercase', letterSpacing:0.5 },
-  searchBar: { backgroundColor:C.surface, margin:16, marginBottom:8, padding:14, borderRadius:14, fontSize:15, color:C.textPrimary, borderWidth:1.5, borderColor:C.border, fontWeight:'600' },
   tabScroll: { marginBottom:8, paddingHorizontal:12 },
-  tab: { paddingHorizontal:16, paddingVertical:8, borderRadius:20, backgroundColor:C.surfaceHighlight, borderWidth:1, borderColor:C.border },
-  tabActive: { backgroundColor:C.primary, borderColor:C.primary },
-  tabTxt: { fontSize:13, fontWeight:'700', color:C.textSecondary },
-  tabTxtActive: { color:'#fff' },
-  card: { backgroundColor:C.surface, padding:18, borderRadius:SIZES.radius, marginHorizontal:16, marginBottom:12, ...SHADOWS.card, borderWidth:1, borderColor:C.border },
+  tabScroll: { marginBottom:8, paddingHorizontal:12 },
   cardHead: { flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 },
   cardVehicle: { fontSize:17, fontWeight:'900', color:C.textPrimary, flex:1, letterSpacing:-0.2 },
   plate: { fontSize:12, fontWeight:'700', color:C.textMuted, marginBottom:6, letterSpacing:0.5 },
-  badge: { paddingHorizontal:10, paddingVertical:5, borderRadius:SIZES.radiusPill, marginLeft:8 },
-  badgeTxt: { fontWeight:'800', fontSize:10, letterSpacing:0.5 },
   cardDetail: { fontSize:13, color:C.textSecondary, marginBottom:4, fontWeight:'500' },
   cardPrice: { fontSize:18, fontWeight:'900', color:C.success, marginTop:6, letterSpacing:-0.5 },
   refundBadge: { flexDirection:'row', alignItems:'center', marginTop:10, padding:10, borderRadius:10 },
   cardActions: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', borderTopWidth:1, borderTopColor:C.border, paddingTop:14, marginTop:12 },
   cardId: { color:C.textMuted, fontSize:12, fontWeight:'700', letterSpacing:1 },
-  actBtn: { paddingHorizontal:12, paddingVertical:7, borderRadius:SIZES.radiusPill, backgroundColor:C.primary+'15', borderWidth:1, borderColor:C.primary+'30' },
-  actBtnTxt: { fontWeight:'800', fontSize:12, color:C.primary },
   empty: { alignItems:'center', marginTop:60, paddingHorizontal:20 },
   emptyTitle: { fontSize:20, fontWeight:'900', color:C.textPrimary, marginTop:12 },
   emptySub: { color:C.textSecondary, marginTop:6, textAlign:'center', fontWeight:'500', fontSize:14 },
@@ -305,14 +313,8 @@ const getStyles = (C, isDark) => StyleSheet.create({
   modalContent: { backgroundColor:C.surface, borderRadius:20, padding:24, maxHeight:'85%' },
   modalTitle: { fontSize:22, fontWeight:'900', color:C.textPrimary, letterSpacing:-0.5, marginBottom:4 },
   modalSub: { fontSize:14, fontWeight:'600', color:C.textSecondary, marginBottom:16 },
-  modalClose: { marginTop:16, padding:14, borderRadius:12, backgroundColor:C.surfaceHighlight, alignItems:'center', borderWidth:1, borderColor:C.border },
-  modalCloseTxt: { fontWeight:'800', color:C.textSecondary, fontSize:15 },
   dlLabel: { fontSize:11, fontWeight:'800', color:C.textMuted, marginTop:14, textTransform:'uppercase', letterSpacing:0.8 },
   dlValue: { fontSize:15, fontWeight:'600', color:C.textPrimary, marginTop:4 },
-  statusChip: { paddingHorizontal:14, paddingVertical:8, borderRadius:20, borderWidth:1.5, borderColor:C.border, backgroundColor:C.surfaceHighlight },
-  statusChipTxt: { fontSize:12, fontWeight:'800', color:C.textSecondary, textTransform:'capitalize' },
-  saveBtn: { backgroundColor:C.primary, padding:14, borderRadius:12, alignItems:'center', marginTop:12 },
-  saveBtnTxt: { color:'#fff', fontWeight:'900', fontSize:15 },
   divider: { height:1, backgroundColor:C.border, marginVertical:20 },
   dateBtn: { backgroundColor:C.surfaceHighlight, padding:14, borderRadius:12, marginTop:8, borderWidth:1, borderColor:C.border },
   dateBtnTxt: { fontSize:14, fontWeight:'700', color:C.textPrimary },

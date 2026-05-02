@@ -25,33 +25,35 @@ export const LIGHT_COLORS = {
   
   border: 'rgba(16, 185, 129, 0.15)', // Glassy green borders
   iconCircleBg: 'rgba(5, 150, 105, 0.1)', // Green circle icon backgrounds
+  info: '#3B82F6',                  // Blue info
 };
 
 export const DARK_COLORS = {
-  primary: '#10B981',             // Brighter Emerald for dark mode contrast
-  primaryDark: '#059669',         // Standard emerald
-  primaryLight: 'rgba(16, 185, 129, 0.15)', // Glassy dark emerald
-  secondary: '#34D399',           // Light Emerald Accent
-  background: '#022C22',          // Deep Forest / Emerald 950 Background
-  surface: '#0A3D2E',             // Slightly lighter forest cards
-  surfaceHighlight: '#0F4D3A',    // Lighter forest highlight
-  headerGradientStart: '#011E17', // Super deep forest
-  headerGradientEnd: '#064E3B',   // Mid forest
+  primary: '#34D399',             // Soft Emerald (easy on eyes, premium)
+  primaryDark: '#10B981',         // Deeper emerald
+  primaryLight: 'rgba(52, 211, 153, 0.12)', // Soft emerald glow
+  secondary: '#6EE7B7',           // Light mint accent
+  background: '#0A0A0A',          // Near-black background
+  surface: '#1A1A1A',             // Dark card surface
+  surfaceHighlight: '#222222',    // Subtle highlight surface
+  headerGradientStart: '#050505', // Pure dark
+  headerGradientEnd: '#0A1A0A',   // Hint of green in dark
   
-  textPrimary: '#ECFDF5',         // Minty white text
-  textSecondary: '#A7F3D0',       // Light mint text
-  textMuted: '#6EE7B7',           // Muted emerald text
-  textOnPrimary: '#FFFFFF',       // White text on green backgrounds
+  textPrimary: '#FFFFFF',         // Pure white text
+  textSecondary: '#B0B0B0',       // Muted gray
+  textMuted: '#666666',           // Dark muted
+  textOnPrimary: '#FFFFFF',       // White text on emerald buttons
   
-  success: '#34D399',             // Softer Green
-  successBg: 'rgba(5, 150, 105, 0.2)',
-  warning: '#FBBF24',             // Softer Amber
-  warningBg: 'rgba(217, 119, 6, 0.2)',
-  error: '#F87171',               // Softer Red
-  errorBg: 'rgba(220, 38, 38, 0.2)',
+  success: '#4ADE80',             // Bright green
+  successBg: 'rgba(74, 222, 128, 0.15)',
+  warning: '#FBBF24',             // Amber
+  warningBg: 'rgba(251, 191, 36, 0.15)',
+  error: '#F87171',               // Soft red
+  errorBg: 'rgba(248, 113, 113, 0.15)',
+  info: '#60A5FA',                // Blue info
   
-  border: 'rgba(255, 255, 255, 0.08)', // Frosted white borders
-  iconCircleBg: 'rgba(16, 185, 129, 0.15)',
+  border: 'rgba(255, 255, 255, 0.08)', // Subtle white borders
+  iconCircleBg: 'rgba(52, 211, 153, 0.1)', // Soft emerald glow circles
 };
 
 // Fallback for files not yet using the ThemeContext hook

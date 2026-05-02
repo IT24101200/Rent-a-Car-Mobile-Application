@@ -4,6 +4,7 @@ import {
   ActivityIndicator, Alert, RefreshControl, StatusBar, Modal, ScrollView, TextInput, Platform, Image, Dimensions
 } from 'react-native';
 import api, { BASE_URL } from '../../api/api';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 const { width: W, height: H } = Dimensions.get('window');
 import { useTheme } from '../../context/ThemeContext';
@@ -198,7 +199,7 @@ export default function UserManagementScreen({ navigation }) {
                   <Text style={styles.subtitle}>{users.length} total accounts</Text>
                 </View>
                 <TouchableOpacity style={styles.avatarBtn} onPress={() => navigation.navigate('Notifications')}>
-                  <Text style={styles.avatarText}>🔔</Text>
+                  <MaterialCommunityIcons name="bell-outline" size={22} color={colors.primary} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -208,14 +209,16 @@ export default function UserManagementScreen({ navigation }) {
                 onPress={() => setSection('customers')}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.sectionTabTxt, section === 'customers' && styles.sectionTabTxtActive]}>👥 Customers ({customerUsers.length})</Text>
+                <MaterialCommunityIcons name="account-group-outline" size={16} color={section === 'customers' ? '#fff' : colors.textSecondary} style={{marginRight: 4}} />
+                <Text style={[styles.sectionTabTxt, section === 'customers' && styles.sectionTabTxtActive]}>Customers ({customerUsers.length})</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.sectionTab, section === 'staff' && styles.sectionTabActive]}
                 onPress={() => setSection('staff')}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.sectionTabTxt, section === 'staff' && styles.sectionTabTxtActive]}>🔧 Staff ({staffUsers.length})</Text>
+                <MaterialCommunityIcons name="shield-account-outline" size={16} color={section === 'staff' ? '#fff' : colors.textSecondary} style={{marginRight: 4}} />
+                <Text style={[styles.sectionTabTxt, section === 'staff' && styles.sectionTabTxtActive]}>Staff ({staffUsers.length})</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -575,13 +578,12 @@ const getStyles = (C) => StyleSheet.create({
   screen:        { flex: 1, backgroundColor: C.background },
   center:        { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.background },
   list:          { padding: 20, paddingBottom: 60 },
-  greenHeader: { backgroundColor: C.headerGradientStart, paddingTop: 50, paddingBottom: 24, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, marginBottom: 16 , marginHorizontal: -20, marginTop: -20},
-  title: { fontSize: 26, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
-  subtitle:      { fontSize: 14, color: 'rgba(255,255,255,0.7)', fontWeight: '600', marginTop: 4 },
-  avatarBtn:      { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
-  avatarText:     { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
+  greenHeader:   { backgroundColor: C.surface, paddingTop: 56, paddingBottom: 24, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: C.border, marginHorizontal: -20, marginTop: -20, marginBottom: 16 },
+  title:         { fontSize: 26, fontWeight: '800', color: C.textPrimary, letterSpacing: -0.5 },
+  subtitle:      { fontSize: 14, color: C.textSecondary, fontWeight: '600', marginTop: 4 },
+  avatarBtn:     { width: 44, height: 44, borderRadius: 22, backgroundColor: C.surfaceHighlight, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: C.border },
 
-  card:          { backgroundColor: C.surface, padding: 20, borderRadius: SIZES.radius, marginBottom: 16, ...SHADOWS.card, borderWidth: 1, borderColor: C.border },
+  card:          { backgroundColor: C.surface, padding: 20, borderRadius: 16, marginBottom: 16, borderWidth: 1, borderColor: C.border },
   cardSuspended: { backgroundColor: C.error + '05', borderColor: C.error + '30' },
   
   headerRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
@@ -598,7 +600,7 @@ const getStyles = (C) => StyleSheet.create({
   actionRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: C.border, paddingTop: 16 },
   statusText:    { fontWeight: '800', fontSize: 14, letterSpacing: 0.5 },
   
-  btn:           { paddingHorizontal: 16, paddingVertical: 10, borderRadius: SIZES.radiusPill, ...SHADOWS.light },
+  btn:           { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20 },
   btnSuspend:    { backgroundColor: C.error },
   btnActivate:   { backgroundColor: C.success },
   btnText:       { color: '#FFFFFF', fontWeight: '800', fontSize: 13 },
@@ -618,8 +620,8 @@ const getStyles = (C) => StyleSheet.create({
   staffColor:    { color: '#7C3AED', fontWeight: '800', fontSize: 10, letterSpacing: 0.3, textTransform: 'uppercase' },
   staffAssignRow: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.border, marginTop: 16, paddingTop: 16 },
 
-  modalOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
-  modalContent:  { backgroundColor: C.surface, borderRadius: 20, padding: 24, maxHeight: '85%' },
+  modalOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 20 },
+  modalContent:  { backgroundColor: C.surface, borderRadius: 20, padding: 24, maxHeight: '85%', borderWidth: 1, borderColor: C.border },
   modalTitle:    { fontSize: 22, fontWeight: '900', color: C.textPrimary, letterSpacing: -0.5 },
   modalSubtitle: { fontSize: 14, fontWeight: '600', color: C.textSecondary, marginTop: 4 },
   modalCancel:   { marginTop: 16, padding: 14, borderRadius: 12, backgroundColor: C.surfaceHighlight, alignItems: 'center', borderWidth: 1, borderColor: C.border },
@@ -644,7 +646,7 @@ const getStyles = (C) => StyleSheet.create({
   dlValue:       { fontSize: 15, fontWeight: '600', color: C.textPrimary, marginTop: 4 },
 
   sectionRow:    { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginTop: 14, marginBottom: 4 },
-  sectionTab:    { flex: 1, paddingVertical: 12, borderRadius: 14, backgroundColor: C.surfaceHighlight, alignItems: 'center', borderWidth: 1.5, borderColor: C.border },
+  sectionTab:    { flex: 1, paddingVertical: 12, borderRadius: 14, backgroundColor: C.surfaceHighlight, alignItems: 'center', borderWidth: 1.5, borderColor: C.border, flexDirection: 'row', justifyContent: 'center' },
   sectionTabActive: { backgroundColor: C.primary, borderColor: C.primary },
   sectionTabTxt: { fontSize: 14, fontWeight: '800', color: C.textSecondary },
   sectionTabTxtActive: { color: '#FFFFFF' },

@@ -3,11 +3,13 @@ import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { ActivityIndicator, View, Text } from 'react-native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 
 // Auth Screens
+import IntroScreen    from './src/screens/auth/IntroScreen';
 import LoginScreen    from './src/screens/auth/LoginScreen';
 import RegisterScreen from './src/screens/auth/RegisterScreen';
 
@@ -51,38 +53,33 @@ import NotificationsScreen from './src/screens/shared/NotificationsScreen';
 const Stack = createNativeStackNavigator();
 const Tab   = createBottomTabNavigator();
 
-const TabIcon = ({ emoji, focused }) => (
-  <Text style={{ 
-    fontSize: 22, 
-    opacity: focused ? 1 : 0.5,
-    transform: [{ scale: focused ? 1.1 : 1 }] 
-  }}>
-    {emoji}
-  </Text>
+const TabIconVector = ({ name, focused, color }) => (
+  <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+    <MaterialCommunityIcons name={name} size={26} color={color} />
+    {focused && (
+      <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: color, marginTop: 4 }} />
+    )}
+  </View>
 );
 
 const baseTabOptions = (colors) => ({
   headerShown: false,
   tabBarActiveTintColor: colors.primary,
   tabBarInactiveTintColor: colors.textMuted,
+  tabBarShowLabel: false,
   tabBarStyle: {
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     elevation: 20,
-    shadowColor: colors.primary,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.3,
     shadowRadius: 10,
-    height: 65,
-    paddingBottom: 8,
-    paddingTop: 8,
+    height: 70,
+    paddingBottom: 10,
+    paddingTop: 10,
   },
-  tabBarLabelStyle: {
-    fontFamily: 'sans-serif', // Using systemic sans-serif as pseudo-Inter
-    fontWeight: '600',
-    fontSize: 11,
-  }
 });
 
 // ── Customer Tabs ──────────────────────────────────────────────────
@@ -90,10 +87,10 @@ function CustomerTabs() {
   const { colors } = useTheme();
   return (
     <Tab.Navigator screenOptions={baseTabOptions(colors)}>
-      <Tab.Screen name="Home"       component={HomeScreen}       options={{ tabBarIcon: (p) => <TabIcon emoji="🚗" {...p} />, title: 'Browse Cars'  }} />
-      <Tab.Screen name="MyBookings" component={MyBookingsScreen} options={{ tabBarIcon: (p) => <TabIcon emoji="📋" {...p} />, title: 'My Bookings'  }} />
-      <Tab.Screen name="MyReviews"  component={CustomerFeedbackScreen} options={{ tabBarIcon: (p) => <TabIcon emoji="⭐" {...p} />, title: 'My Reviews'   }} />
-      <Tab.Screen name="Profile"    component={ProfileScreen}    options={{ tabBarIcon: (p) => <TabIcon emoji="👤" {...p} />, title: 'My Profile'   }} />
+      <Tab.Screen name="Home"       component={HomeScreen}       options={{ tabBarIcon: (p) => <TabIconVector name="home" {...p} /> }} />
+      <Tab.Screen name="MyBookings" component={MyBookingsScreen} options={{ tabBarIcon: (p) => <TabIconVector name="calendar-month" {...p} /> }} />
+      <Tab.Screen name="MyReviews"  component={CustomerFeedbackScreen} options={{ tabBarIcon: (p) => <TabIconVector name="star" {...p} /> }} />
+      <Tab.Screen name="Profile"    component={ProfileScreen}    options={{ tabBarIcon: (p) => <TabIconVector name="account-outline" {...p} /> }} />
     </Tab.Navigator>
   );
 }
@@ -103,11 +100,11 @@ function CarOwnerTabs() {
   const { colors } = useTheme();
   return (
     <Tab.Navigator screenOptions={baseTabOptions(colors)}>
-      <Tab.Screen name="Dashboard"  component={OwnerDashboardScreen} options={{ tabBarIcon: (p) => <TabIcon emoji="📈" {...p} />, title: 'Dashboard' }} />
-      <Tab.Screen name="MyFleet"    component={OwnerVehiclesScreen}  options={{ tabBarIcon: (p) => <TabIcon emoji="🚗" {...p} />, title: 'My Fleet' }} />
-      <Tab.Screen name="Reviews"    component={OwnerFeedbackScreen}  options={{ tabBarIcon: (p) => <TabIcon emoji="⭐" {...p} />, title: 'Reviews' }} />
-      <Tab.Screen name="Reports"    component={OwnerAnalyticsScreen} options={{ tabBarIcon: (p) => <TabIcon emoji="📊" {...p} />, title: 'Reports' }} />
-      <Tab.Screen name="Profile"    component={ProfileScreen}        options={{ tabBarIcon: (p) => <TabIcon emoji="👤" {...p} />, title: 'Profile'  }} />
+      <Tab.Screen name="Dashboard"  component={OwnerDashboardScreen} options={{ tabBarIcon: (p) => <TabIconVector name="view-dashboard-outline" {...p} /> }} />
+      <Tab.Screen name="MyFleet"    component={OwnerVehiclesScreen}  options={{ tabBarIcon: (p) => <TabIconVector name="car-multiple" {...p} /> }} />
+      <Tab.Screen name="Reviews"    component={OwnerFeedbackScreen}  options={{ tabBarIcon: (p) => <TabIconVector name="star-outline" {...p} /> }} />
+      <Tab.Screen name="Reports"    component={OwnerAnalyticsScreen} options={{ tabBarIcon: (p) => <TabIconVector name="chart-bar" {...p} /> }} />
+      <Tab.Screen name="Profile"    component={ProfileScreen}        options={{ tabBarIcon: (p) => <TabIconVector name="account-outline" {...p} /> }} />
     </Tab.Navigator>
   );
 }
@@ -117,10 +114,10 @@ function AdminTabs() {
   const { colors } = useTheme();
   return (
     <Tab.Navigator screenOptions={baseTabOptions(colors)}>
-      <Tab.Screen name="Analytics"      component={AnalyticsScreen} options={{ tabBarIcon: (p) => <TabIcon emoji="📊" {...p} />, title: 'Dashboard'  }} />
-      <Tab.Screen name="AdminDashboard" component={AdminDashboard}  options={{ tabBarIcon: (p) => <TabIcon emoji="🛡️" {...p} />, title: 'Approvals'  }} />
-      <Tab.Screen name="UserManagement" component={UserManagementScreen} options={{ tabBarIcon: (p) => <TabIcon emoji="👥" {...p} />, title: 'Users' }} />
-      <Tab.Screen name="Profile"        component={ProfileScreen}   options={{ tabBarIcon: (p) => <TabIcon emoji="👤" {...p} />, title: 'My Profile' }} />
+      <Tab.Screen name="Analytics"      component={AnalyticsScreen} options={{ tabBarIcon: (p) => <TabIconVector name="chart-line" {...p} /> }} />
+      <Tab.Screen name="AdminDashboard" component={AdminDashboard}  options={{ tabBarIcon: (p) => <TabIconVector name="shield-check-outline" {...p} /> }} />
+      <Tab.Screen name="UserManagement" component={UserManagementScreen} options={{ tabBarIcon: (p) => <TabIconVector name="account-group-outline" {...p} /> }} />
+      <Tab.Screen name="Profile"        component={ProfileScreen}   options={{ tabBarIcon: (p) => <TabIconVector name="account-outline" {...p} /> }} />
     </Tab.Navigator>
   );
 }
@@ -135,30 +132,30 @@ function StaffTabs() {
     <Tab.Navigator screenOptions={baseTabOptions(colors)}>
       {role === 'Booking Manager' && (
         <Tab.Screen name="Bookings" component={AllBookingsScreen}
-          options={{ tabBarIcon: (p) => <TabIcon emoji="📋" {...p} />, title: 'Bookings' }} />
+          options={{ tabBarIcon: (p) => <TabIconVector name="clipboard-text-outline" {...p} /> }} />
       )}
       {role === 'Feedback Manager' && (
         <Tab.Screen name="Feedback" component={FeedbackModerationScreen}
-          options={{ tabBarIcon: (p) => <TabIcon emoji="⭐" {...p} />, title: 'Feedback' }} />
+          options={{ tabBarIcon: (p) => <TabIconVector name="star-outline" {...p} /> }} />
       )}
       {role === 'Vehicle Manager' && (
         <Tab.Screen name="Fleet" component={FleetManagementScreen}
-          options={{ tabBarIcon: (p) => <TabIcon emoji="🚗" {...p} />, title: 'Fleet' }} />
+          options={{ tabBarIcon: (p) => <TabIconVector name="car-multiple" {...p} /> }} />
       )}
       {role === 'Vehicle Validation Manager' && (
         <Tab.Screen name="Approvals" component={AdminDashboard}
-          options={{ tabBarIcon: (p) => <TabIcon emoji="🛡️" {...p} />, title: 'Approvals' }} />
+          options={{ tabBarIcon: (p) => <TabIconVector name="shield-check-outline" {...p} /> }} />
       )}
       {role === 'Payment Manager' && (
         <Tab.Screen name="Payments" component={PaymentManagerScreen}
-          options={{ tabBarIcon: (p) => <TabIcon emoji="💰" {...p} />, title: 'Payments' }} />
+          options={{ tabBarIcon: (p) => <TabIconVector name="cash-multiple" {...p} /> }} />
       )}
       {role === 'Report Handling Manager' && (
         <Tab.Screen name="Analytics" component={ReportManagerScreen}
-          options={{ tabBarIcon: (p) => <TabIcon emoji="📊" {...p} />, title: 'Reports' }} />
+          options={{ tabBarIcon: (p) => <TabIconVector name="chart-bar" {...p} /> }} />
       )}
       <Tab.Screen name="Profile" component={ProfileScreen}
-        options={{ tabBarIcon: (p) => <TabIcon emoji="👤" {...p} />, title: 'Profile' }} />
+        options={{ tabBarIcon: (p) => <TabIconVector name="account-outline" {...p} /> }} />
     </Tab.Navigator>
   );
 }
@@ -197,6 +194,7 @@ function RootNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
       {!user ? (
         <>
+          <Stack.Screen name="Intro"    component={IntroScreen} />
           <Stack.Screen name="Login"    component={LoginScreen} />
           <Stack.Screen name="Register" component={RegisterScreen} />
         </>

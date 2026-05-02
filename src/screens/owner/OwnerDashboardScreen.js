@@ -3,9 +3,14 @@ import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, Modal,
   ActivityIndicator, Alert, SafeAreaView, RefreshControl, ScrollView, Platform, Image, StatusBar
 } from 'react-native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import api from '../../api/api';
 import { SIZES, SHADOWS } from '../../theme/theme';
 import { useTheme } from '../../context/ThemeContext';
+
+import Card from '../../components/atoms/Card';
+import Badge from '../../components/atoms/Badge';
+import Button from '../../components/atoms/Button';
 
 
 
@@ -16,13 +21,15 @@ export default function OwnerDashboardScreen({ navigation }) {
   const styles = React.useMemo(() => getStyles(colors), [colors]);
 
   // Sleek, minimal Stat Card
-  const StatCard = ({ title, value, icon, bgColor, textColor }) => (
-    <View style={[styles.statCard, { backgroundColor: bgColor }]}>
+  const StatCard = ({ title, value, iconName, color }) => (
+    <View style={[styles.statCard, { borderColor: color + '30' }]}>
       <View style={styles.statHeader}>
-        <Text style={[styles.statTitle, { color: textColor }]}>{title}</Text>
-        <Text style={[styles.statIcon, { color: textColor }]}>{icon}</Text>
+        <View style={[styles.statIconCircle, { backgroundColor: color + '15' }]}>
+          <MaterialCommunityIcons name={iconName} size={22} color={color} />
+        </View>
       </View>
-      <Text style={[styles.statValue, { color: textColor }]}>{value}</Text>
+      <Text style={[styles.statValue, { color: C.textPrimary }]}>{value}</Text>
+      <Text style={[styles.statTitle, { color: C.textSecondary }]}>{title}</Text>
     </View>
   );
   const [bookings, setBookings] = useState([]);
@@ -93,9 +100,9 @@ export default function OwnerDashboardScreen({ navigation }) {
       
       {/* Scrollable KPI Cards */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statsScroll}>
-        <StatCard title="Total Revenue" value={`Rs. ${totalEarnings.toLocaleString()}`} icon="💰" bgColor={C.headerGradientEnd} textColor="#FFFFFF" />
-        <StatCard title="Active Rentals" value={activeRentalsCount.toString()} icon="🚗" bgColor={C.primary} textColor="#FFFFFF" />
-        <StatCard title="Completed Trips" value={totalTrips.toString()} icon="✅" bgColor={C.secondary || C.success} textColor="#FFFFFF" />
+        <StatCard title="Total Revenue" value={`Rs. ${totalEarnings.toLocaleString()}`} iconName="cash-multiple" color={C.success} />
+        <StatCard title="Active Rentals" value={activeRentalsCount.toString()} iconName="car-connected" color={C.primary} />
+        <StatCard title="Completed Trips" value={totalTrips.toString()} iconName="check-circle-outline" color="#60A5FA" />
       </ScrollView>
 
       {/* Segmented Control */}
@@ -140,27 +147,24 @@ export default function OwnerDashboardScreen({ navigation }) {
           </View>
         }
         renderItem={({ item }) => (
-          <TouchableOpacity style={styles.card} activeOpacity={0.9} onPress={() => setDetailModal(item)}>
+          <Card 
+            pressable 
+            onPress={() => setDetailModal(item)}
+            style={{ marginHorizontal: 16, marginBottom: 16 }}
+          >
             <View style={styles.cardHeader}>
               <View>
                 <Text style={styles.vehicleName}>{item.vehicle?.makeAndModel || 'Unknown Vehicle'}</Text>
                 <Text style={styles.licenseText}>{item.vehicle?.licensePlate}</Text>
               </View>
-              <View style={[styles.statusBadge, 
-                item.status === 'completed' ? { backgroundColor: C.surfaceHighlight } : 
-                item.status === 'cancelled' ? { backgroundColor: C.errorBg } : 
-                item.status === 'returning' ? { backgroundColor: C.warningBg } : 
-                { backgroundColor: C.successBg }
-              ]}>
-                <Text style={[styles.badgeText, 
-                  item.status === 'completed' ? { color: C.textSecondary } : 
-                  item.status === 'cancelled' ? { color: C.error } : 
-                  item.status === 'returning' ? { color: C.warning } : 
-                  { color: C.success }
-                ]}>
-                  {item.status.toUpperCase()}
-                </Text>
-              </View>
+              <Badge 
+                label={item.status.toUpperCase()}
+                variant={
+                  item.status === 'completed' ? 'primary' : 
+                  item.status === 'cancelled' ? 'error' : 
+                  item.status === 'returning' ? 'warning' : 'success'
+                }
+              />
             </View>
             
             <View style={styles.metaBox}>
@@ -201,12 +205,12 @@ export default function OwnerDashboardScreen({ navigation }) {
             {activeTab === 'active' && item.status === 'returning' && (
               <View style={styles.actionRow}>
                 <Text style={styles.actionWarning}>Customer has checked out and parked the vehicle.</Text>
-                <TouchableOpacity
-                  style={[styles.btn, {backgroundColor: C.warning}]}
+                <Button 
+                  label="Verify & Complete ✅"
                   onPress={() => setVerificationModal(item)}
-                >
-                  <Text style={styles.btnText}>Verify & Complete ✅</Text>
-                </TouchableOpacity>
+                  style={{ backgroundColor: C.warning }}
+                  textStyle={{ color: '#FFF' }}
+                />
               </View>
             )}
 
@@ -227,7 +231,7 @@ export default function OwnerDashboardScreen({ navigation }) {
                 <Text style={styles.upcomingNote}>Vehicle must be made available for pick-up securely.</Text>
               </View>
             )}
-          </TouchableOpacity>
+          </Card>
         )}
       />
 
@@ -251,10 +255,20 @@ export default function OwnerDashboardScreen({ navigation }) {
                 <View style={styles.noPhotoBox}><Text style={styles.noPhotoText}>No photo provided.</Text></View>
               )}
 
-              <TouchableOpacity style={[styles.primaryActionBtn, {marginTop: 20}]} onPress={completeBooking} disabled={verifying}>
-                {verifying ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryActionText}>Archive Trip & Close Booking</Text>}
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setVerificationModal(null)} disabled={verifying}><Text style={styles.cancelBtnText}>Discard / Review Later</Text></TouchableOpacity>
+              <Button 
+                label="Archive Trip & Close Booking"
+                onPress={completeBooking}
+                loading={verifying}
+                style={{ marginTop: 20 }}
+              />
+              <Button 
+                label="Discard / Review Later"
+                variant="ghost"
+                onPress={() => setVerificationModal(null)}
+                disabled={verifying}
+                style={{ marginTop: 12 }}
+                textStyle={{ color: C.textSecondary }}
+              />
             </ScrollView>
           </View>
         </Modal>
@@ -312,9 +326,11 @@ export default function OwnerDashboardScreen({ navigation }) {
                 <Text style={[styles.modalSub, { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 12 }]}>{detailModal._id}</Text>
                 <View style={{ height: 20 }} />
               </ScrollView>
-              <TouchableOpacity style={styles.closeModalBtn} onPress={() => setDetailModal(null)}>
-                <Text style={styles.closeModalBtnText}>Close</Text>
-              </TouchableOpacity>
+              <Button 
+                label="Close"
+                onPress={() => setDetailModal(null)}
+                style={{ marginTop: 10 }}
+              />
             </View>
           </View>
         </Modal>
@@ -328,25 +344,25 @@ const getStyles = (C) => StyleSheet.create({
   center:          { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.background },
   list:            { paddingBottom: 40 },
 
-  // ── Green Header ──
-  greenHeader:     { backgroundColor: C.headerGradientStart, paddingTop: 50, paddingBottom: 24, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, marginBottom: 16 },
-  title:           { fontSize: 26, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
-  subtitle:        { fontSize: 14, color: 'rgba(255,255,255,0.7)', fontWeight: '600', marginTop: 4 },
+  // ── Dark Premium Header ──
+  greenHeader:     { backgroundColor: C.surface, paddingTop: 56, paddingBottom: 24, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: C.border, marginBottom: 0 },
+  title:           { fontSize: 26, fontWeight: '800', color: C.textPrimary, letterSpacing: -0.5 },
+  subtitle:        { fontSize: 14, color: C.textSecondary, fontWeight: '600', marginTop: 4 },
   
   // ── Stat Cards ──
   statsScroll:     { paddingHorizontal: 16, paddingBottom: 10, marginTop: 20 },
-  statCard:        { width: 160, padding: 18, borderRadius: SIZES.radius, marginRight: 12, ...SHADOWS.float },
-  statHeader:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  statValue:       { fontSize: 24, fontWeight: '900' },
-  statTitle:       { fontSize: 14, fontWeight: '600', opacity: 0.9 },
-  statIcon:        { fontSize: 18 },
+  statCard:        { width: 160, padding: 18, borderRadius: 16, marginRight: 12, backgroundColor: C.surface, borderWidth: 1 },
+  statHeader:      { marginBottom: 14 },
+  statIconCircle:  { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  statValue:       { fontSize: 22, fontWeight: '900', letterSpacing: -0.5 },
+  statTitle:       { fontSize: 12, fontWeight: '700', marginTop: 4 },
   
   // ── Segmented Tabs ──
-  tabContainer:    { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.15)', marginTop: 20, borderRadius: SIZES.radius, padding: 4 },
-  tabBtn:          { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: SIZES.radius },
-  tabBtnActive:    { backgroundColor: C.surface, ...SHADOWS.light },
-  tabText:         { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.7)' },
-  tabTextActive:   { color: C.primary, fontWeight: '800' },
+  tabContainer:    { flexDirection: 'row', backgroundColor: C.surfaceHighlight, marginTop: 20, borderRadius: 12, padding: 4 },
+  tabBtn:          { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
+  tabBtnActive:    { backgroundColor: C.primary },
+  tabText:         { fontSize: 13, fontWeight: '600', color: C.textMuted },
+  tabTextActive:   { color: C.textOnPrimary, fontWeight: '800' },
   
   // ── Empty State ──
   emptyContainer:  { alignItems: 'center', justifyContent: 'center', padding: 40, marginTop: 20 },
@@ -354,39 +370,28 @@ const getStyles = (C) => StyleSheet.create({
   emptyText:       { color: C.textMuted, fontSize: 16, fontWeight: '500' },
 
   // ── Booking Cards ──
-  card:            { backgroundColor: C.surface, marginHorizontal: 16, padding: 16, borderRadius: SIZES.radius, marginBottom: 16, borderWidth: 1, borderColor: C.border, ...SHADOWS.card },
   cardHeader:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   vehicleName:     { fontSize: 18, fontWeight: '800', color: C.textPrimary },
   licenseText:     { fontSize: 13, color: C.textMuted, fontWeight: '600', marginTop: 2 },
-  statusBadge:     { paddingHorizontal: 12, paddingVertical: 6, borderRadius: SIZES.radius },
-  badgeText:       { fontWeight: '800', fontSize: 11, letterSpacing: 0.5 },
   
-  metaBox:         { backgroundColor: C.background, padding: 16, borderRadius: SIZES.radius, borderWidth: 1, borderColor: C.border },
+  metaBox:         { backgroundColor: C.background, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: C.border },
   metaRow:         { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: C.border, paddingBottom: 8, marginBottom: 8 },
   detailTitle:     { fontSize: 13, color: C.textSecondary, fontWeight: '600' },
   detailText:      { fontSize: 13, color: C.textPrimary, fontWeight: '700' },
   
   actionRow:       { paddingTop: 16, marginTop: 4 },
   actionWarning:   { fontSize: 12, color: C.warning, marginBottom: 10, fontWeight: '600', textAlign: 'center' },
-  upcomingNote:    { fontSize: 13, color: C.primary, fontWeight: '600', textAlign: 'center', backgroundColor: C.primaryLight, padding: 10, borderRadius: SIZES.radius },
-  btn:             { backgroundColor: C.primary, paddingVertical: 14, borderRadius: SIZES.radius, width: '100%', alignItems: 'center', ...SHADOWS.card },
-  btnText:         { color: '#FFFFFF', fontWeight: '800', fontSize: 15 },
+  upcomingNote:    { fontSize: 13, color: C.primary, fontWeight: '600', textAlign: 'center', backgroundColor: C.primaryLight, padding: 10, borderRadius: 10 },
   
   // ── Modal ──
-  modalOverlay:    { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalBox:        { backgroundColor: C.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 28, paddingBottom: 40 },
-  modalTitle:      { fontSize: 24, fontWeight: '900', color: C.success, marginBottom: 4 },
+  modalOverlay:    { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  modalBox:        { backgroundColor: C.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 28, paddingBottom: 40, borderWidth: 1, borderColor: C.border, borderBottomWidth: 0 },
+  modalTitle:      { fontSize: 24, fontWeight: '900', color: C.primary, marginBottom: 4 },
   modalSub:        { color: C.textSecondary, marginBottom: 20, fontWeight: '600' },
   ratingLabel:     { fontSize: 14, fontWeight: '700', color: C.textPrimary, marginBottom: 8 },
-  detailBox:       { backgroundColor: C.background, borderWidth: 1, borderColor: C.border, padding: 16, borderRadius: SIZES.radius, marginBottom: 20 },
+  detailBox:       { backgroundColor: C.background, borderWidth: 1, borderColor: C.border, padding: 16, borderRadius: 12, marginBottom: 20 },
   detailValueText: { fontSize: 18, fontWeight: '800', color: C.textPrimary },
-  conditionImage:  { width: '100%', height: 200, borderRadius: SIZES.radius, marginBottom: 10 },
-  noPhotoBox:      { backgroundColor: C.background, height: 100, borderRadius: SIZES.radius, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  conditionImage:  { width: '100%', height: 200, borderRadius: 12, marginBottom: 10 },
+  noPhotoBox:      { backgroundColor: C.background, height: 100, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
   noPhotoText:     { color: C.textSecondary, fontWeight: '600' },
-  primaryActionBtn:{ backgroundColor: C.primary, borderRadius: SIZES.radius, padding: 16, alignItems: 'center', ...SHADOWS.card },
-  primaryActionText:{ color: '#FFFFFF', fontWeight: '800', fontSize: 16 },
-  cancelBtn:       { marginTop: 12, alignItems: 'center', padding: 14 },
-  cancelBtnText:   { color: C.textSecondary, fontWeight: '700' },
-  closeModalBtn:   { backgroundColor: C.primary, paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 10 },
-  closeModalBtnText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 16 },
 });

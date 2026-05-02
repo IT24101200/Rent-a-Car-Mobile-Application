@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, StatusBar,
+  View, Text, TouchableOpacity,
+  StyleSheet, ScrollView, Alert, KeyboardAvoidingView, Platform, StatusBar,
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import api from '../../api/api';
 import { SIZES, SHADOWS } from '../../theme/theme';
+
+import TextInput from '../../components/atoms/TextInput';
+import Button from '../../components/atoms/Button';
 
 const ROLES   = ['Customer', 'Car Owner'];
 
@@ -76,20 +79,25 @@ export default function RegisterScreen({ navigation }) {
         <ScrollView contentContainerStyle={styles.formScroll} keyboardShouldPersistTaps="handled">
           
           {/* Full Name */}
-          <Text style={styles.label}>FULL NAME</Text>
-          <View style={[styles.inputWrapper, errors.name && styles.inputError]}>
-            <Text style={styles.inputIcon}>👤</Text>
-            <TextInput style={styles.input} placeholder="John Doe" placeholderTextColor={colors.textMuted} value={name} onChangeText={setName} />
-          </View>
-          {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
+          <TextInput
+            label="FULL NAME"
+            placeholder="John Doe"
+            value={name}
+            onChangeText={setName}
+            error={errors.name}
+            icon="account-outline"
+          />
 
           {/* Email */}
-          <Text style={styles.label}>EMAIL ADDRESS</Text>
-          <View style={[styles.inputWrapper, errors.email && styles.inputError]}>
-            <Text style={styles.inputIcon}>✉️</Text>
-            <TextInput style={styles.input} placeholder="you@example.com" placeholderTextColor={colors.textMuted} keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} />
-          </View>
-          {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+          <TextInput
+            label="EMAIL ADDRESS"
+            placeholder="you@example.com"
+            type="email"
+            value={email}
+            onChangeText={setEmail}
+            error={errors.email}
+            icon="email-outline"
+          />
 
           {/* Role Selection */}
           <Text style={styles.label}>ACCOUNT TYPE</Text>
@@ -103,25 +111,37 @@ export default function RegisterScreen({ navigation }) {
           </View>
 
           {/* Password */}
-          <Text style={styles.label}>PASSWORD</Text>
-          <View style={[styles.inputWrapper, errors.password && styles.inputError]}>
-            <Text style={styles.inputIcon}>🔒</Text>
-            <TextInput style={styles.input} placeholder="At least 6 characters" placeholderTextColor={colors.textMuted} secureTextEntry value={password} onChangeText={setPassword} />
+          <View style={{ marginTop: 16 }}>
+            <TextInput
+              label="PASSWORD"
+              placeholder="At least 6 characters"
+              type="password"
+              value={password}
+              onChangeText={setPassword}
+              error={errors.password}
+              icon="lock-outline"
+            />
           </View>
-          {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
 
           {/* Confirm */}
-          <Text style={styles.label}>CONFIRM PASSWORD</Text>
-          <View style={[styles.inputWrapper, errors.confirm && styles.inputError]}>
-            <Text style={styles.inputIcon}>✓</Text>
-            <TextInput style={styles.input} placeholder="Re-enter password" placeholderTextColor={colors.textMuted} secureTextEntry value={confirm} onChangeText={setConfirm} />
-          </View>
-          {errors.confirm && <Text style={styles.errorText}>{errors.confirm}</Text>}
+          <TextInput
+            label="CONFIRM PASSWORD"
+            placeholder="Re-enter password"
+            type="password"
+            value={confirm}
+            onChangeText={setConfirm}
+            error={errors.confirm}
+            icon="check-circle-outline"
+          />
 
           {/* Submit */}
-          <TouchableOpacity style={[styles.btn, loading && styles.btnDisabled]} onPress={handleRegister} disabled={loading} activeOpacity={0.8}>
-            {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.btnText}>Create Account</Text>}
-          </TouchableOpacity>
+          <Button
+            label="Create Account"
+            onPress={handleRegister}
+            loading={loading}
+            size="large"
+            style={{ marginTop: 12 }}
+          />
 
           <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.linkRow}>
             <Text style={styles.linkText}>Already have an account? <Text style={styles.link}>Sign In</Text></Text>

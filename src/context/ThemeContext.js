@@ -7,8 +7,8 @@ const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
   // 'light', 'dark', or 'system'
-  const [themeMode, setThemeMode] = useState('system');
-  const [isDark, setIsDark] = useState(false);
+  const [themeMode, setThemeMode] = useState('dark');
+  const [isDark, setIsDark] = useState(true);
   const [isReady, setIsReady] = useState(false);
 
   // Load saved preference

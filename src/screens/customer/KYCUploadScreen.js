@@ -4,6 +4,8 @@ import {
   ScrollView, Alert, Image, ActivityIndicator, Platform, StatusBar
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import api, { BASE_URL } from '../../api/api';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -152,7 +154,7 @@ export default function KYCUploadScreen({ navigation }) {
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor={colors.headerGradientStart} />
-      <View style={styles.greenHeader}>
+      <LinearGradient colors={[colors.headerGradientStart, colors.headerGradientEnd || colors.primary]} style={styles.greenHeader}>
         <View style={styles.headerTop}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={{marginRight: 16, padding: 4}} hitSlop={{top:10, bottom:10, left:10, right:10}}>
              <Text style={styles.backBtn}>←</Text>
@@ -160,7 +162,7 @@ export default function KYCUploadScreen({ navigation }) {
           <Text style={styles.headerTitle}>Identity Center</Text>
         </View>
         {renderStatusBanner()}
-      </View>
+      </LinearGradient>
 
       <ScrollView contentContainerStyle={styles.scrollArea}>
         {renderUploadBox('dlFront', 'Driving License (Front)', '🪪')}
@@ -168,25 +170,28 @@ export default function KYCUploadScreen({ navigation }) {
         {renderUploadBox('nic',     'NIC / Passport',          '🛂')}
         {renderUploadBox('selfie',  'Selfie with ID',          '🤳', true)}
 
-        {!isLocked && (
+        <Text style={styles.securityNote}>🔒 Your documents are safely stored and encrypted.</Text>
+      </ScrollView>
+
+      {!isLocked && (
+        <BlurView intensity={90} tint={isDark ? "dark" : "light"} style={styles.checkoutFooter}>
           <TouchableOpacity 
             style={[styles.submitBtn, loading && styles.btnDisabled]} 
             onPress={submitKYC}
             disabled={loading}
             activeOpacity={0.8}
           >
-            {loading ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.submitBtnText}>{isRejected ? 'Re-Submit Documents' : 'Submit Documents'}</Text>}
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>{isRejected ? 'Re-Submit Documents' : 'Submit Documents'}</Text>}
           </TouchableOpacity>
-        )}
-        <Text style={styles.securityNote}>🔒 Your documents are safely stored and encrypted.</Text>
-      </ScrollView>
+        </BlurView>
+      )}
     </View>
   );
 }
 
 const getStyles = (C) => StyleSheet.create({
   screen:             { flex: 1, backgroundColor: C.background },
-  greenHeader:     { backgroundColor: C.headerGradientStart, paddingTop: 50, paddingBottom: 24, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, marginBottom: 16 },
+  greenHeader:     { paddingTop: Platform.OS === 'ios' ? 60 : 50, paddingBottom: 24, paddingHorizontal: 20, borderBottomLeftRadius: 36, borderBottomRightRadius: 36, marginBottom: 16, ...SHADOWS.float },
   headerTop:          { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   backBtn:            { fontSize: 22, color: '#FFFFFF', fontWeight: '700' },
   headerTitle:        { fontSize: 24, fontWeight: '900', color: '#FFFFFF', letterSpacing: -0.5 },
@@ -196,7 +201,7 @@ const getStyles = (C) => StyleSheet.create({
   statusBannerTitle:  { fontSize: 15, fontWeight: '800', marginBottom: 6, letterSpacing: -0.2 },
   statusBannerText:   { fontSize: 13, lineHeight: 20, fontWeight: '600' },
 
-  scrollArea:         { padding: 20, paddingBottom: 60 },
+  scrollArea:         { padding: 20, paddingBottom: 140 },
   
   uploadCard:         { backgroundColor: C.surface, borderRadius: SIZES.radius, padding: 20, marginBottom: 20, borderWidth: 1, borderColor: C.border, ...SHADOWS.card },
   uploadCardLocked:   { opacity: 0.95, backgroundColor: C.background },
@@ -210,8 +215,9 @@ const getStyles = (C) => StyleSheet.create({
   placeholderText:    { color: C.textSecondary, fontWeight: '700', fontSize: 14 },
   previewImage:       { width: '100%', height: '100%', resizeMode: 'cover' },
   
-  submitBtn:          { backgroundColor: C.primary, borderRadius: SIZES.radius, paddingVertical: 18, alignItems: 'center', marginTop: 12, ...SHADOWS.float },
+  checkoutFooter:     { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 24, borderTopWidth: 1, borderTopColor: C.border },
+  submitBtn:          { backgroundColor: C.primary, borderRadius: 16, paddingVertical: 18, alignItems: 'center', ...SHADOWS.float },
   btnDisabled:        { opacity: 0.7 },
   submitBtnText:      { color: '#FFFFFF', fontWeight: '800', fontSize: 16, letterSpacing: 0.5 },
-  securityNote:       { color: C.textMuted, textAlign: 'center', marginTop: 24, fontSize: 13, fontWeight: '600' }
+  securityNote:       { color: C.textMuted, textAlign: 'center', marginTop: 12, marginBottom: 24, fontSize: 13, fontWeight: '600' }
 });

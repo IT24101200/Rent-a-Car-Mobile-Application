@@ -4,13 +4,18 @@ import {
   ActivityIndicator, Alert, SafeAreaView, RefreshControl,
   Modal, TextInput, KeyboardAvoidingView, Platform, ScrollView, StatusBar
 } from 'react-native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../../context/AuthContext';
 import api, { BASE_URL } from '../../api/api';
 import { SIZES, SHADOWS } from '../../theme/theme';
 import { useTheme } from '../../context/ThemeContext';
 
-
+import Card from '../../components/atoms/Card';
+import Badge from '../../components/atoms/Badge';
+import Button from '../../components/atoms/Button';
+import TextInputAtom from '../../components/atoms/TextInput';
+import Chip from '../../components/atoms/Chip';
 export default function OwnerVehiclesScreen({ navigation }) {
   const { colors } = useTheme();
   const C = colors;
@@ -104,18 +109,15 @@ export default function OwnerVehiclesScreen({ navigation }) {
       <Text style={[styles.label, { marginTop: 0 }]}>{title}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ overflow: 'visible' }}>
         <View style={{ flexDirection: 'row', paddingVertical: 4 }}>
-          {options.map(option => {
-            const isSelected = selectedValue === option;
-            return (
-              <TouchableOpacity
-                key={option}
-                style={[styles.chip, isSelected && styles.chipSelected]}
-                onPress={() => onSelect(option)}
-              >
-                <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>{option}</Text>
-              </TouchableOpacity>
-            );
-          })}
+          {options.map(option => (
+            <Chip 
+              key={option}
+              label={option}
+              selected={selectedValue === option}
+              onPress={() => onSelect(option)}
+              style={{ marginRight: 10 }}
+            />
+          ))}
         </View>
       </ScrollView>
     </View>
@@ -246,89 +248,113 @@ export default function OwnerVehiclesScreen({ navigation }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchMyVehicles(true)} />}
         contentContainerStyle={styles.list}
         ListEmptyComponent={<Text style={{textAlign: 'center', color: C.textMuted, padding: 20}}>You haven't added any vehicles yet.</Text>}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            {/* Vehicle Image */}
-            {item.imageUrl ? (
-              <Image
-                source={{ uri: `${BASE_URL}${item.imageUrl}` }}
-                style={styles.cardImage}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={styles.cardImagePlaceholder}>
-                <Text style={{ fontSize: 36 }}>🚗</Text>
-                <Text style={styles.noImageText}>No image uploaded</Text>
-              </View>
-            )}
+        renderItem={({ item }) => {
+          const isAccepted = item.validationStatus === 'accepted';
+          const isRejected = item.validationStatus === 'rejected';
+          return (
+          <View style={styles.fleetCard}>
+            {/* Vehicle Image with Status Overlay */}
+            <View style={styles.fleetImageWrap}>
+              {item.imageUrl ? (
+                <Image source={{ uri: `${BASE_URL}${item.imageUrl}` }} style={styles.cardImage} resizeMode="cover" />
+              ) : (
+                <View style={styles.cardImagePlaceholder}>
+                  <MaterialCommunityIcons name="car-sports" size={40} color={C.textMuted} />
+                  <Text style={styles.noImageText}>No image</Text>
+                </View>
+              )}
+              {/* Availability dot */}
+              {isAccepted && (
+                <View style={[styles.availDot, { backgroundColor: item.isAvailable ? C.success : C.error }]} />
+              )}
+            </View>
 
+            {/* Card Content */}
             <View style={styles.cardBody}>
+              {/* Title Row */}
               <View style={styles.cardHeader}>
-                <View style={{ flex: 1, paddingRight: 10 }}>
-                  <Text style={styles.makeModel} numberOfLines={1}>{item.makeAndModel}</Text>
-                </View>
-                <View style={[styles.statusBadge, item.validationStatus === 'accepted' ? { backgroundColor: C.successBg } : item.validationStatus === 'rejected' ? { backgroundColor: C.errorBg } : { backgroundColor: C.warningBg }]}>
-                  {getStatusBadge(item.validationStatus)}
+                <Text style={styles.makeModel} numberOfLines={1}>{item.makeAndModel}</Text>
+                <View style={[styles.statusChip, { backgroundColor: isAccepted ? C.successBg : isRejected ? C.errorBg : C.warningBg, borderColor: isAccepted ? C.success : isRejected ? C.error : C.warning }]}>
+                  <Text style={[styles.statusChipText, { color: isAccepted ? C.success : isRejected ? C.error : C.warning }]}>
+                    {isAccepted ? 'Approved' : isRejected ? 'Rejected' : 'Pending'}
+                  </Text>
                 </View>
               </View>
 
-              <Text style={styles.detail}>🔖 {item.licensePlate} • {item.year || 'N/A'}</Text>
-              <Text style={styles.detail}>{item.type || 'Vehicle'} • {item.transmission || 'N/A'} • {item.fuelType || 'N/A'} • 💺 {item.seats || 'N/A'}</Text>
-              <Text style={[styles.detail, {fontWeight: '800', color: C.success, fontSize: 16, marginTop: 4}]}>Rs. {item.pricePerDay} / day</Text>
+              {/* Specs Row with Icons */}
+              <View style={styles.specsRow}>
+                <View style={styles.specItem}>
+                  <MaterialCommunityIcons name="card-text-outline" size={14} color={C.textMuted} />
+                  <Text style={styles.specText}>{item.licensePlate}</Text>
+                </View>
+                <View style={styles.specItem}>
+                  <MaterialCommunityIcons name="car-cog" size={14} color={C.textMuted} />
+                  <Text style={styles.specText}>{item.type || 'Car'}</Text>
+                </View>
+                <View style={styles.specItem}>
+                  <MaterialCommunityIcons name="gas-station" size={14} color={C.textMuted} />
+                  <Text style={styles.specText}>{item.fuelType || 'N/A'}</Text>
+                </View>
+                <View style={styles.specItem}>
+                  <MaterialCommunityIcons name="seat" size={14} color={C.textMuted} />
+                  <Text style={styles.specText}>{item.seats || '4'}</Text>
+                </View>
+              </View>
 
+              {/* Price */}
+              <View style={styles.priceRow}>
+                <Text style={[styles.priceText, { color: C.primary }]}>Rs.{item.pricePerDay}<Text style={styles.priceUnit}>/day</Text></Text>
+                {isAccepted && (
+                  <Text style={[styles.availText, { color: item.isAvailable ? C.success : C.error }]}>
+                    {item.isAvailable ? '● Listed' : '● Hidden'}
+                  </Text>
+                )}
+              </View>
+
+              {/* Price Proposal Alert */}
               {item.priceProposal && item.priceProposal.status === 'pending' && item.priceProposal.proposedBy === 'admin' && (
-                <View style={{ backgroundColor: C.warning+'15', padding: 12, borderRadius: 8, marginTop: 8, borderWidth: 1, borderColor: C.warning }}>
-                  <Text style={{ fontSize: 14, fontWeight: '800', color: C.warning, marginBottom: 4 }}>⚠️ Admin Price Decrease Proposal</Text>
-                  <Text style={{ fontSize: 13, color: C.textPrimary, marginBottom: 8 }}>Fleet Manager proposed decreasing price to <Text style={{fontWeight:'bold'}}>Rs. {item.priceProposal.proposedPrice}</Text></Text>
+                <View style={styles.proposalBox}>
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: C.warning, marginBottom: 4 }}>Admin Price Proposal</Text>
+                  <Text style={{ fontSize: 12, color: C.textSecondary, marginBottom: 8 }}>Proposed: <Text style={{ fontWeight: '800', color: C.textPrimary }}>Rs. {item.priceProposal.proposedPrice}</Text></Text>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <TouchableOpacity style={{ flex: 1, backgroundColor: C.success, padding: 8, borderRadius: 6, alignItems: 'center' }} onPress={() => resolveProposal(item._id, 'approve')}>
-                      <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>Accept</Text>
+                    <TouchableOpacity style={[styles.proposalBtn, { backgroundColor: C.success }]} onPress={() => resolveProposal(item._id, 'approve')}>
+                      <MaterialCommunityIcons name="check" size={16} color={C.textOnPrimary} />
+                      <Text style={{ color: C.textOnPrimary, fontWeight: '700', fontSize: 12, marginLeft: 4 }}>Accept</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={{ flex: 1, backgroundColor: C.error, padding: 8, borderRadius: 6, alignItems: 'center' }} onPress={() => resolveProposal(item._id, 'reject')}>
-                      <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>Reject</Text>
+                    <TouchableOpacity style={[styles.proposalBtn, { backgroundColor: C.error }]} onPress={() => resolveProposal(item._id, 'reject')}>
+                      <MaterialCommunityIcons name="close" size={16} color={C.textOnPrimary} />
+                      <Text style={{ color: C.textOnPrimary, fontWeight: '700', fontSize: 12, marginLeft: 4 }}>Reject</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
               )}
 
+              {/* Action Buttons */}
               <View style={styles.actionRow}>
-                {item.validationStatus === 'accepted' && (
-                  <TouchableOpacity
-                    style={[styles.btn, item.isAvailable ? styles.btnSuspend : styles.btnActivate, actionId === item._id && { opacity: 0.5 }]}
+                {isAccepted && (
+                  <TouchableOpacity 
+                    style={[styles.actionBtn, { borderColor: item.isAvailable ? C.warning : C.success }]} 
                     onPress={() => toggleAvailability(item)}
                     disabled={actionId === item._id}
                   >
-                    <Text style={styles.btnText}>{item.isAvailable ? 'Hide' : 'Show'}</Text>
+                    <MaterialCommunityIcons name={item.isAvailable ? 'eye-off-outline' : 'eye-outline'} size={18} color={item.isAvailable ? C.warning : C.success} />
                   </TouchableOpacity>
                 )}
-
-                <TouchableOpacity
-                  style={[styles.btn, styles.btnEdit, actionId === item._id && { opacity: 0.5 }, { flex: 1.5, backgroundColor: C.primary+'15' }]}
-                  onPress={() => setDetailItem(item)}
-                  disabled={actionId === item._id}
-                >
-                  <Text style={[styles.btnText, { color: C.primary }]}>🔍 View Details</Text>
+                <TouchableOpacity style={[styles.actionBtn, { borderColor: C.primary, flex: 1 }]} onPress={() => setDetailItem(item)}>
+                  <MaterialCommunityIcons name="information-outline" size={18} color={C.primary} />
+                  <Text style={[styles.actionBtnText, { color: C.primary }]}>Details</Text>
                 </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.btn, styles.btnEdit, actionId === item._id && { opacity: 0.5 }]}
-                  onPress={() => openEditModal(item)}
-                  disabled={actionId === item._id}
-                >
-                  <Text style={[styles.btnText, { color: C.textPrimary }]}>✏️ Edit</Text>
+                <TouchableOpacity style={[styles.actionBtn, { borderColor: C.textMuted, flex: 1 }]} onPress={() => openEditModal(item)}>
+                  <MaterialCommunityIcons name="pencil-outline" size={18} color={C.textSecondary} />
+                  <Text style={[styles.actionBtnText, { color: C.textSecondary }]}>Edit</Text>
                 </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[styles.btn, styles.btnDelete, actionId === item._id && { opacity: 0.5 }]}
-                  onPress={() => confirmDelete(item._id)}
-                  disabled={actionId === item._id}
-                >
-                  <Text style={styles.btnText}>🗑️</Text>
+                <TouchableOpacity style={[styles.actionBtn, { borderColor: C.error }]} onPress={() => confirmDelete(item._id)} disabled={actionId === item._id}>
+                  <MaterialCommunityIcons name="trash-can-outline" size={18} color={C.error} />
                 </TouchableOpacity>
               </View>
             </View>
           </View>
-        )}
+        )}}
       />
 
       {/* Edit Vehicle Modal */}
@@ -377,8 +403,7 @@ export default function OwnerVehiclesScreen({ navigation }) {
               )}
 
               <Text style={styles.label}>Make and Model</Text>
-              <TextInput
-                style={styles.input}
+              <TextInputAtom
                 value={editForm.makeAndModel}
                 onChangeText={t => setEditForm(prev => ({...prev, makeAndModel: t}))}
                 placeholder="e.g. Toyota Corolla"
@@ -387,8 +412,7 @@ export default function OwnerVehiclesScreen({ navigation }) {
               <View style={{flexDirection: 'row', justifyContent: 'space-between'}}>
                 <View style={{flex: 1, marginRight: 10}}>
                   <Text style={styles.label}>License Plate</Text>
-                  <TextInput
-                    style={styles.input}
+                  <TextInputAtom
                     value={editForm.licensePlate}
                     onChangeText={t => setEditForm(prev => ({...prev, licensePlate: t}))}
                     placeholder="ABC-1234"
@@ -403,8 +427,7 @@ export default function OwnerVehiclesScreen({ navigation }) {
                       <Text style={{ color: C.textSecondary, fontSize: 13 }}>Proposed Price: Rs. {editingVehicle.priceProposal.proposedPrice}</Text>
                     </View>
                   ) : (
-                    <TextInput
-                      style={styles.input}
+                    <TextInputAtom
                       keyboardType="numeric"
                       value={String(editForm.pricePerDay)}
                       onChangeText={t => setEditForm(prev => ({...prev, pricePerDay: t}))}
@@ -419,16 +442,15 @@ export default function OwnerVehiclesScreen({ navigation }) {
               <SelectorSection title="Seats" options={SEATS} selectedValue={editForm.seats} onSelect={t => setEditForm(prev => ({...prev, seats: t}))} />
 
               <Text style={styles.label}>Year</Text>
-              <TextInput
-                style={styles.input}
+              <TextInputAtom
                 value={editForm.year}
                 onChangeText={t => setEditForm(prev => ({...prev, year: t}))}
                 keyboardType="numeric"
               />
 
               <Text style={styles.label}>Features</Text>
-              <TextInput
-                style={[styles.input, { minHeight: 60, textAlignVertical: 'top' }]}
+              <TextInputAtom
+                style={{ minHeight: 60, textAlignVertical: 'top' }}
                 value={editForm.features}
                 onChangeText={t => setEditForm(prev => ({...prev, features: t}))}
                 multiline
@@ -497,13 +519,14 @@ export default function OwnerVehiclesScreen({ navigation }) {
                 })()}
               </View>
 
-              <View style={styles.modalActions}>
-                <TouchableOpacity style={styles.modalBtnCancel} onPress={closeEditModal}>
-                  <Text style={styles.modalBtnCancelText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.modalBtnSave} onPress={saveEdit} disabled={actionId === editingVehicle?._id}>
-                  {actionId === editingVehicle?._id ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.modalBtnSaveText}>Save & Request Approval</Text>}
-                </TouchableOpacity>
+              <View style={[styles.modalActions, { gap: 12 }]}>
+                <Button label="Cancel" variant="ghost" onPress={closeEditModal} />
+                <Button 
+                  label="Save & Request Approval" 
+                  onPress={saveEdit} 
+                  loading={actionId === editingVehicle?._id} 
+                  disabled={actionId === editingVehicle?._id} 
+                />
               </View>
             </View>
           </ScrollView>
@@ -582,12 +605,11 @@ export default function OwnerVehiclesScreen({ navigation }) {
                 </>
               )}
             </ScrollView>
-            <TouchableOpacity 
-              style={{ backgroundColor: C.primary, paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 16 }} 
-              onPress={() => setDetailItem(null)}
-            >
-              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>Close Details</Text>
-            </TouchableOpacity>
+            <Button 
+              label="Close Details" 
+              style={{ marginTop: 16 }} 
+              onPress={() => setDetailItem(null)} 
+            />
           </View>
         </View>
       </Modal>
@@ -607,49 +629,55 @@ export default function OwnerVehiclesScreen({ navigation }) {
 const getStyles = (C) => StyleSheet.create({
   screen:        { flex: 1, backgroundColor: C.background },
 
-  // ── Green Header ──
-  greenHeader:   { backgroundColor: C.headerGradientStart, paddingTop: 50, paddingBottom: 24, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, marginBottom: 16 },
-  title:         { fontSize: 26, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
-  subtitle:      { fontSize: 14, color: 'rgba(255,255,255,0.7)', fontWeight: '600', marginTop: 4 },
+  // ── Dark Premium Header ──
+  greenHeader:   { backgroundColor: C.surface, paddingTop: 56, paddingBottom: 24, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: C.border },
+  title:         { fontSize: 26, fontWeight: '800', color: C.textPrimary, letterSpacing: -0.5 },
+  subtitle:      { fontSize: 14, color: C.textSecondary, fontWeight: '600', marginTop: 4 },
   center:        { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.background },
-  list:          { padding: 16, paddingBottom: 40 },
+  list:          { padding: 16, paddingBottom: 100 },
 
-  // ── Vehicle Cards ──
-  card:              { backgroundColor: C.surface, borderRadius: SIZES.radius, marginBottom: 16, borderWidth: 1, borderColor: C.border, overflow: 'hidden', ...SHADOWS.card },
+  // ── Fleet Vehicle Cards ──
+  fleetCard:         { backgroundColor: C.surface, borderRadius: 16, overflow: 'hidden', marginBottom: 16, borderWidth: 1, borderColor: C.border },
+  fleetImageWrap:    { position: 'relative' },
   cardImage:         { width: '100%', height: 170 },
-  cardImagePlaceholder: { width: '100%', height: 110, backgroundColor: C.surfaceHighlight, alignItems: 'center', justifyContent: 'center' },
-  noImageText:       { fontSize: 12, color: C.textMuted, fontWeight: '600', marginTop: 6 },
-  cardBody:          { padding: 14 },
-  cardHeader:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  makeModel:         { fontSize: 18, fontWeight: '800', color: C.textPrimary, flex: 1 },
-  statusBadge:       { paddingHorizontal: 10, paddingVertical: 4, borderRadius: SIZES.radius },
-  badgeText:         { fontWeight: '700', fontSize: 12, color: C.textPrimary },
-  detail:            { fontSize: 14, color: C.textSecondary, marginBottom: 5, fontWeight: '500' },
-  actionRow:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: C.border, paddingTop: 12, marginTop: 10 },
-  infoText:          { color: C.textMuted, fontSize: 12, fontStyle: 'italic', flex: 1 },
-  btnGroupRow:   { flex: 1, marginRight: 10 },
-  btn:           { paddingHorizontal: 16, paddingVertical: 10, borderRadius: SIZES.radius },
-  btnEdit:       { backgroundColor: C.background, alignItems: 'center', borderWidth: 1, borderColor: C.border },
-  btnActivate:   { backgroundColor: C.success, flex: 1, marginRight: 10, alignItems: 'center' },
-  btnSuspend:    { backgroundColor: C.warning, flex: 1, marginRight: 10, alignItems: 'center' },
-  btnDelete:     { backgroundColor: C.error },
-  btnText:       { color: '#FFFFFF', fontWeight: '700', fontSize: 13 },
+  cardImagePlaceholder: { width: '100%', height: 130, backgroundColor: C.surfaceHighlight, alignItems: 'center', justifyContent: 'center' },
+  noImageText:       { fontSize: 11, color: C.textMuted, fontWeight: '600', marginTop: 6 },
+  availDot:          { position: 'absolute', top: 12, right: 12, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: C.surface },
   
-  // ── Chip Styles ──
-  chip:           { backgroundColor: C.surface, paddingHorizontal: 16, paddingVertical: 10, borderRadius: SIZES.radius, marginRight: 10, borderWidth: 1, borderColor: C.border },
-  chipSelected:   { backgroundColor: C.primary, borderColor: C.primary },
-  chipText:       { color: C.textSecondary, fontWeight: '600', fontSize: 14 },
-  chipTextSelected:{ color: '#FFFFFF' },
+  cardBody:          { padding: 16 },
+  cardHeader:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  makeModel:         { fontSize: 17, fontWeight: '800', color: C.textPrimary, flex: 1, marginRight: 10 },
+  statusChip:        { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1 },
+  statusChipText:    { fontSize: 11, fontWeight: '800' },
+
+  specsRow:          { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 12 },
+  specItem:          { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  specText:          { fontSize: 12, color: C.textSecondary, fontWeight: '600' },
+
+  priceRow:          { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  priceText:         { fontSize: 18, fontWeight: '900' },
+  priceUnit:         { fontSize: 12, fontWeight: '600', color: C.textMuted },
+  availText:         { fontSize: 12, fontWeight: '800' },
+
+  proposalBox:       { backgroundColor: C.warningBg, padding: 12, borderRadius: 10, marginTop: 10, borderWidth: 1, borderColor: C.warning },
+  proposalBtn:       { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 8, borderRadius: 8 },
+
+  actionRow:         { flexDirection: 'row', gap: 8, borderTopWidth: 1, borderTopColor: C.border, paddingTop: 14, marginTop: 14 },
+  actionBtn:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
+  actionBtnText:     { fontSize: 12, fontWeight: '700' },
+  
+  detail:            { fontSize: 14, color: C.textSecondary, marginBottom: 5, fontWeight: '500' },
+  badgeText:         { fontSize: 12, fontWeight: '800' },
+  infoText:          { color: C.textMuted, fontSize: 12, fontStyle: 'italic', flex: 1 },
 
   // ── Modal Styles ──
-  modalOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 15 },
+  modalOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 15 },
   modalScroll:   { flexGrow: 1, justifyContent: 'center', paddingVertical: 20 },
-  modalContent:  { backgroundColor: C.surface, borderRadius: 20, padding: 24, ...SHADOWS.float },
+  modalContent:  { backgroundColor: C.surface, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: C.border },
   modalTitle:    { fontSize: 22, fontWeight: '800', color: C.textPrimary, marginBottom: 16 },
   warningBox:    { backgroundColor: C.warningBg, padding: 12, borderRadius: SIZES.radius, borderWidth: 1, borderColor: C.warning, marginBottom: 20 },
   warningText:   { color: C.warning, fontSize: 14, lineHeight: 20 },
   label:         { fontSize: 14, fontWeight: '600', color: C.textPrimary, marginBottom: 6, marginTop: 8 },
-  input:         { borderWidth: 1, borderColor: C.border, borderRadius: SIZES.radius, padding: 10, fontSize: 15, color: C.textPrimary, backgroundColor: C.background },
 
   // ── Modal Image Picker ──
   imagePickerBox:     { width: '100%', height: 160, borderRadius: SIZES.radius, overflow: 'hidden', marginBottom: 6, borderWidth: 1.5, borderColor: C.border, borderStyle: 'dashed' },
@@ -658,12 +686,6 @@ const getStyles = (C) => StyleSheet.create({
   editImagePlaceholderText: { fontSize: 13, color: C.textMuted, fontWeight: '600', marginTop: 6 },
   changePhotoBtn:     { alignItems: 'center', paddingVertical: 6, marginBottom: 10 },
   changePhotoText:    { color: C.primary, fontWeight: '700', fontSize: 13 },
-
-  modalActions:  { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 20 },
-  modalBtnCancel:{ paddingVertical: 12, paddingHorizontal: 20, borderRadius: SIZES.radius, marginRight: 12 },
-  modalBtnCancelText: { color: C.textSecondary, fontWeight: '700', fontSize: 15 },
-  modalBtnSave:  { backgroundColor: C.primary, paddingVertical: 12, paddingHorizontal: 24, borderRadius: SIZES.radius, ...SHADOWS.card },
-  modalBtnSaveText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
 
   // ── Document Vault ──
   editDocVault:       { marginTop: 18, backgroundColor: C.background, borderRadius: SIZES.radius, padding: 14, borderWidth: 1, borderColor: C.border },
@@ -684,6 +706,6 @@ const getStyles = (C) => StyleSheet.create({
   optBadgeText:       { color: C.textMuted, fontSize: 9, fontWeight: '700' },
 
   // ── FAB ──
-  fab: { position: 'absolute', bottom: 24, right: 24, width: 60, height: 60, borderRadius: 30, backgroundColor: C.primary, justifyContent: 'center', alignItems: 'center', ...SHADOWS.float, elevation: 8, zIndex: 99 },
-  fabText: { fontSize: 32, color: '#FFFFFF', fontWeight: '400', lineHeight: 34 },
+  fab: { position: 'absolute', bottom: 24, right: 24, width: 60, height: 60, borderRadius: 30, backgroundColor: C.primary, justifyContent: 'center', alignItems: 'center', elevation: 8, zIndex: 99, shadowColor: C.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8 },
+  fabText: { fontSize: 32, color: C.textOnPrimary, fontWeight: '400', lineHeight: 34 },
 });

@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, Alert, ActivityIndicator, TextInput, StatusBar, Image
+  ScrollView, Alert, ActivityIndicator, StatusBar, Image
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../api/api';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { SIZES, SHADOWS } from '../../theme/theme';
+
+import Card from '../../components/atoms/Card';
+import Button from '../../components/atoms/Button';
+import TextInputAtom from '../../components/atoms/TextInput';
 
 export default function PaymentScreen({ route, navigation }) {
   const { vehicle, startDate, endDate, days, total } = route.params;
@@ -105,27 +109,35 @@ export default function PaymentScreen({ route, navigation }) {
   };
 
 
-  // ── Success Screen ────────────────────────────────────────────────
+  // ── Premium Success Screen ────────────────────────────────────────────────
   if (paid) {
     return (
       <View style={styles.successScreen}>
-        <StatusBar barStyle="dark-content" backgroundColor={colors.success + '15'} />
+        <StatusBar barStyle="light-content" backgroundColor={colors.background} />
         <View style={styles.successCenter}>
-          <Text style={styles.successEmoji}>{payMethod === 'bank_transfer' ? '⏳' : '🎉'}</Text>
-          <Text style={styles.successTitle}>{payMethod === 'bank_transfer' ? 'Booking Submitted!' : 'Booking Confirmed!'}</Text>
-          <Text style={styles.successSub}>{payMethod === 'bank_transfer' ? 'Your booking is pending payment verification by our team.' : 'Your vehicle has been successfully booked.'}</Text>
-
+          <View style={styles.successIconBox}>
+            <Text style={styles.successEmoji}>{payMethod === 'bank_transfer' ? '⏳' : '✨'}</Text>
+          </View>
+          <Text style={styles.successTitle}>{payMethod === 'bank_transfer' ? 'Verification Pending' : 'Payment Successful!'}</Text>
+          <Text style={styles.successSub}>{payMethod === 'bank_transfer' ? 'Your transfer slip has been securely uploaded and is awaiting approval.' : 'Your booking is confirmed. Your digital keys are ready.'}</Text>
           
-          <View style={styles.successCard}>
-            <Text style={styles.successVehicle}>🚗 {vehicle.makeAndModel}</Text>
-            <View style={styles.successDivider} />
-            <Text style={styles.successDetail}>📅 {new Date(startDate).toLocaleDateString()}  →  {new Date(endDate).toLocaleDateString()}</Text>
-            <Text style={styles.successTotal}>Amount: Rs. {total.toLocaleString()}</Text>
+          <View style={styles.successReceipt}>
+            <View style={styles.receiptHoleTop} />
+            <View style={styles.receiptHoleBottom} />
+            <Text style={styles.successVehicle}>{vehicle.makeAndModel}</Text>
+            <View style={styles.successDashedDivider} />
+            <Text style={styles.successDetail}>{new Date(startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}  →  {new Date(endDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</Text>
+            <View style={styles.successDashedDivider} />
+            <Text style={styles.successTotal}>Rs. {total.toLocaleString()}</Text>
+            <Text style={styles.successTotalLabel}>TOTAL PAID</Text>
           </View>
           
-          <TouchableOpacity style={styles.homeBtn} onPress={() => navigation.navigate('Main', { screen: 'MyBookings' })} activeOpacity={0.8}>
-            <Text style={styles.homeBtnText}>View My Bookings</Text>
-          </TouchableOpacity>
+          <Button 
+            label="View My Bookings" 
+            onPress={() => navigation.navigate('Main', { screen: 'MyBookings' })} 
+            size="large"
+            style={{ width: '100%', marginTop: 24 }}
+          />
         </View>
       </View>
     );
@@ -144,7 +156,7 @@ export default function PaymentScreen({ route, navigation }) {
 
       <ScrollView contentContainerStyle={styles.container}>
         {/* Order Summary */}
-        <View style={styles.card}>
+        <Card style={{ marginBottom: 20 }}>
           <Text style={styles.sectionTitle}>📋 Order Summary</Text>
           <Row label="Vehicle"    value={vehicle.makeAndModel} styles={styles} />
           <Row label="Plate"      value={vehicle.licensePlate} styles={styles} />
@@ -156,10 +168,10 @@ export default function PaymentScreen({ route, navigation }) {
             <Text style={styles.totalLabel}>Total Amount</Text>
             <Text style={styles.totalValue}>Rs. {total.toLocaleString()}</Text>
           </View>
-        </View>
+        </Card>
 
         {/* Payment Method */}
-        <View style={styles.card}>
+        <Card>
           <Text style={styles.sectionTitle}>💳 Payment Method</Text>
           <View style={styles.payMethodRow}>
             <TouchableOpacity style={[styles.payMethod, payMethod === 'card' && styles.payMethodActive]} onPress={() => setPayMethod('card')} activeOpacity={0.8}>
@@ -176,26 +188,68 @@ export default function PaymentScreen({ route, navigation }) {
             </TouchableOpacity>
           </View>
 
+          {/* Interactive Digital Credit Card Visualizer */}
+          {payMethod === 'card' && (
+            <View style={styles.creditCardVisual}>
+              <View style={styles.ccHeader}>
+                <Text style={styles.ccChip}>💳</Text>
+                <Text style={styles.ccBrand}>DRIVEEASE PAY</Text>
+              </View>
+              <Text style={styles.ccNumber}>
+                {cardNumber ? cardNumber.replace(/(.{4})/g, '$1 ').trim() : '••••  ••••  ••••  ••••'}
+              </Text>
+              <View style={styles.ccFooter}>
+                <View>
+                  <Text style={styles.ccLabel}>CARD HOLDER</Text>
+                  <Text style={styles.ccValue}>{user?.name || 'GUEST USER'}</Text>
+                </View>
+                <View>
+                  <Text style={styles.ccLabel}>EXPIRES</Text>
+                  <Text style={styles.ccValue}>{expiryDate || 'MM/YY'}</Text>
+                </View>
+              </View>
+            </View>
+          )}
+
           {/* Interactive Card Fields */}
           {payMethod === 'card' && (
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Card Number</Text>
-              <View style={[styles.pseudoInput, errors.card && styles.inputErrorBorder]}>
-                <Text style={{opacity: 0.5}}>💳</Text>
-                <TextInput style={styles.textInput} placeholder="1234 5678 9101 1121" placeholderTextColor={colors.textMuted} keyboardType="numeric" maxLength={19} value={cardNumber} onChangeText={setCardNumber} />
-              </View>
-              {errors.card && <Text style={styles.errorText}>{errors.card}</Text>}
+              <TextInputAtom
+                label="Card Number"
+                placeholder="1234 5678 9101 1121"
+                type="number"
+                maxLength={19}
+                value={cardNumber}
+                onChangeText={setCardNumber}
+                icon="credit-card-outline"
+                error={errors.card}
+              />
               
-              <View style={{flexDirection: 'row', gap: 16, marginTop: 16}}>
+              <View style={{flexDirection: 'row', gap: 16}}>
                 <View style={{flex: 1}}>
-                  <Text style={styles.inputLabel}>Expiry Date</Text>
-                  <TextInput style={[styles.pseudoInput, errors.expiry && styles.inputErrorBorder]} placeholderTextColor={colors.textMuted} placeholder="MM/YY" keyboardType="numeric" maxLength={5} value={expiryDate} onChangeText={setExpiryDate} />
-                  {errors.expiry && <Text style={styles.errorText}>{errors.expiry}</Text>}
+                  <TextInputAtom
+                    label="Expiry Date"
+                    placeholder="MM/YY"
+                    type="number"
+                    maxLength={5}
+                    value={expiryDate}
+                    onChangeText={setExpiryDate}
+                    icon="calendar-blank"
+                    error={errors.expiry}
+                  />
                 </View>
                 <View style={{flex: 1}}>
-                  <Text style={styles.inputLabel}>CVV</Text>
-                  <TextInput style={[styles.pseudoInput, errors.cvv && styles.inputErrorBorder]} placeholder="123" placeholderTextColor={colors.textMuted} keyboardType="numeric" maxLength={3} secureTextEntry={true} value={cvv} onChangeText={setCvv} />
-                  {errors.cvv && <Text style={styles.errorText}>{errors.cvv}</Text>}
+                  <TextInputAtom
+                    label="CVV"
+                    placeholder="123"
+                    type="number"
+                    maxLength={3}
+                    secureTextEntry={true}
+                    value={cvv}
+                    onChangeText={setCvv}
+                    icon="lock-outline"
+                    error={errors.cvv}
+                  />
                 </View>
               </View>
             </View>
@@ -228,23 +282,17 @@ export default function PaymentScreen({ route, navigation }) {
               {errors.slip && <Text style={styles.errorText}>{errors.slip}</Text>}
             </View>
           )}
-        </View>
+        </Card>
 
         {/* Confirm Payment Button */}
-        <TouchableOpacity
-          style={[styles.payBtn, loading && styles.btnDisabled]}
+        <Button
+          label={`Confirm Booking ${payMethod === 'card' ? '& Pay' : ''}\nRs. ${total.toLocaleString()}`}
           onPress={handlePayment}
+          loading={loading}
           disabled={loading}
-          activeOpacity={0.8}
-        >
-          {loading
-            ? <ActivityIndicator color={colors.surface} />
-            : <>
-                <Text style={styles.payBtnText}>Confirm Booking {payMethod === 'card' && '& Pay'}</Text>
-                <Text style={styles.payBtnAmount}>Rs. {total.toLocaleString()}</Text>
-              </>
-          }
-        </TouchableOpacity>
+          size="large"
+          style={{ marginTop: 12 }}
+        />
 
         <Text style={styles.disclaimer}>🔒 Secure & encrypted checkout via DrivEase</Text>
       </ScrollView>
@@ -268,7 +316,6 @@ const getStyles = (C) => StyleSheet.create({
   headerRight:     { width: 60 },
   
   container:       { padding: 20, paddingBottom: 60 },
-  card:            { backgroundColor: C.surface, borderRadius: SIZES.radius, padding: 24, marginBottom: 20, borderWidth: 1, borderColor: C.border, ...SHADOWS.card },
   sectionTitle:    { fontSize: 16, fontWeight: '800', marginBottom: 20, color: C.textPrimary, letterSpacing: -0.2 },
   
   row:             { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
@@ -286,18 +333,18 @@ const getStyles = (C) => StyleSheet.create({
   payMethodText:   { fontSize: 13, fontWeight: '700', color: C.textSecondary },
   payMethodTextActive: { color: C.primary },
   
-  inputContainer:  { marginTop: 24 },
-  inputLabel:      { fontSize: 12, fontWeight: '800', color: C.textSecondary, textTransform: 'uppercase', marginBottom: 8 },
-  pseudoInput:     { flexDirection: 'row', alignItems: 'center', backgroundColor: C.background, borderWidth: 1, borderColor: C.border, paddingHorizontal: 16, height: SIZES.inputHeight, borderRadius: SIZES.radius, gap: 12 },
-  textInput:       { flex: 1, color: C.textPrimary, fontWeight: '700', fontSize: 16 },
-  inputErrorBorder:{ borderColor: C.error, borderWidth: 1.5 },
-  errorText:       { color: C.error, fontSize: 12, marginTop: 6, fontWeight: '600' },
-  
-  payBtn:          { backgroundColor: C.primary, borderRadius: SIZES.radius, paddingVertical: 18, alignItems: 'center', marginTop: 12, ...SHADOWS.float },
-  btnDisabled:     { opacity: 0.7 },
-  payBtnText:      { color: '#FFFFFF', fontWeight: '800', fontSize: 16, letterSpacing: 0.5 },
-  payBtnAmount:    { color: 'rgba(255,255,255,0.8)', fontSize: 14, marginTop: 4, fontWeight: '600' },
+  inputContainer:  { marginTop: 12 },
   disclaimer:      { color: C.textMuted, textAlign: 'center', marginTop: 20, fontSize: 12, fontWeight: '600' },
+  
+  // ── Digital Credit Card ──
+  creditCardVisual: { backgroundColor: '#0f172a', borderRadius: 24, padding: 24, marginBottom: 24, ...SHADOWS.float, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  ccHeader:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+  ccChip:         { fontSize: 32 },
+  ccBrand:        { color: 'rgba(255,255,255,0.3)', fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase', fontSize: 12 },
+  ccNumber:       { color: '#FFFFFF', fontSize: 24, fontWeight: '900', letterSpacing: 4, marginBottom: 32, textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: {width: 0, height: 2}, textShadowRadius: 4 },
+  ccFooter:       { flexDirection: 'row', justifyContent: 'space-between' },
+  ccLabel:        { color: 'rgba(255,255,255,0.4)', fontSize: 10, fontWeight: '800', letterSpacing: 1, marginBottom: 4 },
+  ccValue:        { color: '#FFFFFF', fontSize: 14, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 },
   
   bankDetailsBox:  { backgroundColor: C.surfaceHighlight, padding: 16, borderRadius: SIZES.radius, borderWidth: 1, borderColor: C.border },
   bankDetailsTitle:{ fontSize: 14, fontWeight: '800', color: C.textPrimary, marginBottom: 8 },
@@ -305,19 +352,20 @@ const getStyles = (C) => StyleSheet.create({
   uploadBtn:       { borderWidth: 2, borderColor: C.border, borderStyle: 'dashed', borderRadius: SIZES.radius, height: 180, justifyContent: 'center', alignItems: 'center', backgroundColor: C.background, overflow: 'hidden' },
   slipImage:       { width: '100%', height: '100%' },
 
-  // Success
-  successScreen:   { flex: 1, backgroundColor: C.success + '15', justifyContent: 'center' },
-  successCenter:   { alignItems: 'center', padding: 32 },
-  successEmoji:    { fontSize: 80, marginBottom: 16 },
-  successTitle:    { fontSize: 32, fontWeight: '900', color: C.success, textAlign: 'center', letterSpacing: -0.5 },
-  successSub:      { color: C.textSecondary, marginTop: 8, fontSize: 16, textAlign: 'center', fontWeight: '500', marginBottom: 32 },
+  // Premium Success Screen
+  successScreen:   { flex: 1, backgroundColor: C.background, justifyContent: 'center' },
+  successCenter:   { alignItems: 'center', padding: 24 },
+  successIconBox:  { width: 100, height: 100, backgroundColor: C.primaryLight, borderRadius: 50, justifyContent: 'center', alignItems: 'center', marginBottom: 24, borderWidth: 2, borderColor: C.primary, ...SHADOWS.float },
+  successEmoji:    { fontSize: 50 },
+  successTitle:    { fontSize: 36, fontWeight: '900', color: C.textPrimary, textAlign: 'center', letterSpacing: -1, lineHeight: 40 },
+  successSub:      { color: C.textSecondary, marginTop: 12, fontSize: 16, textAlign: 'center', fontWeight: '600', marginBottom: 40, paddingHorizontal: 20 },
   
-  successCard:     { backgroundColor: C.surface, borderRadius: SIZES.radius, padding: 24, width: '100%', ...SHADOWS.float, borderWidth: 1, borderColor: C.success + '80' },
-  successVehicle:  { fontSize: 18, color: C.textPrimary, fontWeight: '800', textAlign: 'center' },
-  successDivider:  { height: 1, backgroundColor: C.border, marginVertical: 16 },
-  successDetail:   { fontSize: 14, color: C.textSecondary, fontWeight: '600', textAlign: 'center', marginBottom: 16 },
-  successTotal:    { fontSize: 18, fontWeight: '900', color: C.success, textAlign: 'center' },
-  
-  homeBtn:         { backgroundColor: C.success, borderRadius: SIZES.radius, paddingHorizontal: 32, paddingVertical: 16, marginTop: 40, ...SHADOWS.float },
-  homeBtnText:     { color: '#FFFFFF', fontWeight: '800', fontSize: 16, letterSpacing: 0.5 }
+  successReceipt:  { backgroundColor: C.surface, borderRadius: 24, padding: 32, width: '100%', ...SHADOWS.float, position: 'relative', borderWidth: 1, borderColor: C.border },
+  receiptHoleTop:  { position: 'absolute', top: -15, left: '50%', marginLeft: -15, width: 30, height: 30, borderRadius: 15, backgroundColor: C.background },
+  receiptHoleBottom:{ position: 'absolute', bottom: -15, left: '50%', marginLeft: -15, width: 30, height: 30, borderRadius: 15, backgroundColor: C.background },
+  successVehicle:  { fontSize: 22, color: C.textPrimary, fontWeight: '900', textAlign: 'center', letterSpacing: -0.5 },
+  successDashedDivider: { height: 1, borderBottomWidth: 2, borderBottomColor: C.border, borderStyle: 'dashed', marginVertical: 20 },
+  successDetail:   { fontSize: 16, color: C.textSecondary, fontWeight: '800', textAlign: 'center' },
+  successTotal:    { fontSize: 36, fontWeight: '900', color: C.primary, textAlign: 'center' },
+  successTotalLabel:{ fontSize: 10, fontWeight: '900', color: C.textMuted, textAlign: 'center', letterSpacing: 2, marginTop: 4 },
 });

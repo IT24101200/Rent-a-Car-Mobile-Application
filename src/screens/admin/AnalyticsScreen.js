@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { BarChart } from 'react-native-chart-kit';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import api from '../../api/api';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -18,19 +19,23 @@ export default function AnalyticsScreen() {
   const isAdmin = user?.role === 'Admin';
   const styles = React.useMemo(() => getStyles(colors), [colors]);
 
-  const StatCard = ({ emoji, label, value, color = colors.primary, bg = colors.primary + '15', width = '47%' }) => (
-    <View style={[styles.statCard, { backgroundColor: bg, width }]}>
-      <Text style={styles.statEmoji}>{emoji}</Text>
+  const StatCard = ({ iconName, label, value, color = colors.primary, bg = colors.primaryLight, width = '47%' }) => (
+    <View style={[styles.statCard, { backgroundColor: bg, borderColor: color + '30', width }]}>
+      <View style={[styles.statIconCircle, { backgroundColor: color + '20' }]}>
+        <MaterialCommunityIcons name={iconName} size={26} color={color} />
+      </View>
       <Text style={[styles.statValue, { color }]}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
 
-  const ActionButton = ({ emoji, title, onPress }) => (
+  const ActionButton = ({ iconName, title, onPress }) => (
     <TouchableOpacity style={styles.actionBtn} onPress={onPress}>
-      <Text style={styles.actionEmoji}>{emoji}</Text>
+      <View style={styles.actionIconCircle}>
+        <MaterialCommunityIcons name={iconName} size={20} color={colors.primary} />
+      </View>
       <Text style={styles.actionTitle}>{title}</Text>
-      <Text style={styles.actionArrow}>→</Text>
+      <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textMuted} />
     </TouchableOpacity>
   );
 
@@ -73,11 +78,11 @@ export default function AnalyticsScreen() {
         <View style={styles.greenHeader}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <View>
-              <Text style={styles.title}>📊 Admin Dashboard</Text>
+              <Text style={styles.title}>Admin Dashboard</Text>
               <Text style={styles.subtitle}>Overview & Quick Actions</Text>
             </View>
             <TouchableOpacity style={styles.avatarBtn} onPress={() => nav.navigate('Notifications')}>
-              <Text style={styles.avatarText}>🔔</Text>
+              <MaterialCommunityIcons name="bell-outline" size={22} color={colors.primary} />
             </TouchableOpacity>
           </View>
         </View>
@@ -91,19 +96,19 @@ export default function AnalyticsScreen() {
         {/* ── Quick Management Menus ──────────────────────────────── */}
         <Text style={styles.sectionTitle}>Management Menu</Text>
         <View style={styles.actionGrid}>
-          {isAdmin && <ActionButton emoji="👥" title="Manage Users" onPress={() => nav.navigate('UserManagement')} />}
-          {isAdmin && <ActionButton emoji="📋" title="All Bookings" onPress={() => nav.navigate('AllBookings')} />}
-          {isAdmin && <ActionButton emoji="🚗" title="Fleet Config" onPress={() => nav.navigate('FleetManagement')} />}
-          {isAdmin && <ActionButton emoji="⭐" title="Feedback"     onPress={() => nav.navigate('FeedbackModeration')} />}
-          <ActionButton emoji="📄" title="Full Report"  onPress={() => nav.navigate('AdminReport')} />
+          {isAdmin && <ActionButton iconName="account-group-outline" title="Manage Users" onPress={() => nav.navigate('UserManagement')} />}
+          {isAdmin && <ActionButton iconName="clipboard-text-outline" title="All Bookings" onPress={() => nav.navigate('AllBookings')} />}
+          {isAdmin && <ActionButton iconName="car-cog" title="Fleet Config" onPress={() => nav.navigate('FleetManagement')} />}
+          {isAdmin && <ActionButton iconName="star-outline" title="Feedback" onPress={() => nav.navigate('FeedbackModeration')} />}
+          <ActionButton iconName="file-chart-outline" title="Full Report" onPress={() => nav.navigate('AdminReport')} />
         </View>
 
         {/* ── Key Statistics ──────────────────────────────────── */}
         <Text style={styles.sectionTitle}>Key Metrics</Text>
         <View style={styles.statsGrid}>
-          <StatCard width="100%" emoji="💰" label="Total Platform Income" value={`Rs. ${(stats?.totalIncome || 0).toLocaleString()}`} color={colors.success} bg={colors.success + '15'} />
-          <StatCard emoji="📋" label="Bookings" value={stats?.totalBookings ?? 0} color={colors.primary} bg={colors.primary + '15'} />
-          <StatCard emoji="🚗" label="Vehicles" value={stats?.totalVehicles ?? 0} color="#7C3AED" bg={isDark ? '#4C1D95' : '#F5F3FF'} />
+          <StatCard width="100%" iconName="cash-multiple" label="Total Platform Income" value={`Rs. ${(stats?.totalIncome || 0).toLocaleString()}`} color={colors.success} bg={colors.successBg} />
+          <StatCard iconName="clipboard-text-outline" label="Bookings" value={stats?.totalBookings ?? 0} color={colors.primary} bg={colors.primaryLight} />
+          <StatCard iconName="car-multiple" label="Vehicles" value={stats?.totalVehicles ?? 0} color="#A78BFA" bg="rgba(167,139,250,0.12)" />
         </View>
 
         {/* ── Chart ──────────────────────────────────────────────── */}
@@ -118,11 +123,15 @@ export default function AnalyticsScreen() {
             height={220}
             yAxisLabel="Rs "
             chartConfig={{
-              backgroundColor: colors.surfaceHighlight, backgroundGradientFrom: colors.primary, backgroundGradientTo: isDark ? colors.surfaceHighlight : '#0284C7',
+              backgroundColor: colors.surface,
+              backgroundGradientFrom: colors.surface,
+              backgroundGradientTo: colors.surfaceHighlight,
               decimalPlaces: 0,
-              color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-              labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-              style: { borderRadius: 16 }
+              color: (opacity = 1) => `rgba(52, 211, 153, ${opacity})`,
+              labelColor: (opacity = 1) => `rgba(176, 176, 176, ${opacity})`,
+              style: { borderRadius: 16 },
+              propsForBackgroundLines: { strokeDasharray: '', stroke: 'rgba(255,255,255,0.05)' },
+              barPercentage: 0.6,
             }}
             style={{ borderRadius: 16 }}
             showValuesOnTopOfBars={true}
@@ -137,27 +146,25 @@ export default function AnalyticsScreen() {
 const getStyles = (C) => StyleSheet.create({
   screen:         { flex: 1, backgroundColor: C.background },
   container:      { padding: 20, paddingBottom: 40 },
-  greenHeader: { backgroundColor: C.headerGradientStart, paddingTop: 50, paddingBottom: 24, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, marginBottom: 16 , marginHorizontal: -20, marginTop: -20},
+  greenHeader:    { backgroundColor: C.surface, paddingTop: 56, paddingBottom: 24, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: C.border, marginHorizontal: -20, marginTop: -20, marginBottom: 16 },
   center:         { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.background },
-  title:           { fontSize: 26, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
-  subtitle:       { color: 'rgba(255,255,255,0.7)', marginTop: 4, marginBottom: 10, fontSize: 14, fontWeight: '500' },
-  avatarBtn:      { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
-  avatarText:     { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
+  title:          { fontSize: 26, fontWeight: '800', color: C.textPrimary, letterSpacing: -0.5 },
+  subtitle:       { color: C.textSecondary, marginTop: 4, marginBottom: 10, fontSize: 14, fontWeight: '500' },
+  avatarBtn:      { width: 44, height: 44, borderRadius: 22, backgroundColor: C.surfaceHighlight, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: C.border },
   sectionTitle:   { fontSize: 18, fontWeight: '700', color: C.primary, marginTop: 10, marginBottom: 12 },
-  warningBox:     { backgroundColor: C.warning + '15', borderRadius: SIZES.radius, padding: 12, marginBottom: 16 },
+  warningBox:     { backgroundColor: C.warningBg, borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: C.warning },
   warningText:    { color: C.warning, fontSize: 13, fontWeight: '600' },
   
   actionGrid:     { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 },
-  actionBtn:      { width: '47%', backgroundColor: C.surface, borderRadius: SIZES.radius, padding: 16, flexDirection: 'row', alignItems: 'center', ...SHADOWS.card, borderWidth: 1, borderColor: C.border },
-  actionEmoji:    { fontSize: 20, marginRight: 10 },
-  actionTitle:    { flex: 1, fontWeight: '700', color: C.textPrimary, fontSize: 14 },
-  actionArrow:    { color: C.textMuted, fontSize: 16, fontWeight: 'bold' },
+  actionBtn:      { width: '47%', backgroundColor: C.surface, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: C.border },
+  actionIconCircle: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.primaryLight, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  actionTitle:    { flex: 1, fontWeight: '700', color: C.textPrimary, fontSize: 13 },
 
   statsGrid:      { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 },
-  statCard:       { borderRadius: SIZES.radius, padding: 18, alignItems: 'center', ...SHADOWS.card, borderWidth: 1, borderColor: C.border },
-  statEmoji:      { fontSize: 32 },
-  statValue:      { fontSize: 24, fontWeight: '900', marginTop: 8, letterSpacing: -0.5 },
+  statCard:       { borderRadius: 16, padding: 18, alignItems: 'center', borderWidth: 1 },
+  statIconCircle: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  statValue:      { fontSize: 24, fontWeight: '900', letterSpacing: -0.5 },
   statLabel:      { color: C.textSecondary, fontSize: 12, marginTop: 4, textAlign: 'center', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
 
-  chartContainer: { alignItems: 'center', ...SHADOWS.card, backgroundColor: C.surface, borderRadius: SIZES.radius, borderWidth: 1, borderColor: C.border, overflow: 'hidden' }
+  chartContainer: { alignItems: 'center', backgroundColor: C.surface, borderRadius: 16, borderWidth: 1, borderColor: C.border, overflow: 'hidden' }
 });
