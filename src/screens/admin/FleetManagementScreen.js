@@ -1,3 +1,5 @@
+// Fleet Management admin screen for viewing, filtering, editing, approving,
+// deleting, and managing vehicle listings in the platform fleet.
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput,
@@ -28,14 +30,17 @@ export default function FleetManagementScreen() {
   const [editAvail, setEditAvail] = useState(true);
   const [editDoc, setEditDoc] = useState(null);
 
+  // Fetch all fleet vehicles from backend
   const fetchFleet = useCallback(async (r = false) => {
     r ? setRefreshing(true) : setLoading(true);
     try { setVehicles((await api.get('/api/admin/vehicles')).data); }
+    // Error handling if API request fails
     catch { Alert.alert('Error', 'Could not load fleet.'); }
     finally { setLoading(false); setRefreshing(false); }
   }, []);
   useEffect(() => { fetchFleet(); }, [fetchFleet]);
 
+  // Filter vehicles by status tab + search text
   const filtered = useMemo(() => {
     let d = vehicles;
     if (tab !== 'all') d = d.filter(v => v.validationStatus === tab);
@@ -46,6 +51,7 @@ export default function FleetManagementScreen() {
     return d;
   }, [vehicles, tab, search]);
 
+  // Dashboard statistics
   const stats = useMemo(() => ({
     total: vehicles.length,
     accepted: vehicles.filter(v => v.validationStatus === 'accepted').length,
@@ -56,17 +62,20 @@ export default function FleetManagementScreen() {
 
   const SC = { accepted:{bg:colors.success+'20',tx:colors.success}, pending:{bg:colors.warning+'20',tx:colors.warning}, rejected:{bg:colors.error+'20',tx:colors.error} };
 
+  // Accept / reject listed vehicle
   const doToggleStatus = async (id, current) => {
     const next = current === 'accepted' ? 'rejected' : 'accepted';
     const label = next === 'accepted' ? 'Relist' : 'Delist';
     Alert.alert(label, `${label} this vehicle?`, [{text:'Cancel',style:'cancel'},{text:label,style:next==='rejected'?'destructive':'default',onPress:async()=>{
       setActionId(id);
       try { await api.patch(`/api/vehicles/${id}/status`, {validationStatus:next}); setVehicles(p=>p.map(v=>v._id===id?{...v,validationStatus:next}:v)); }
+      // Error if update fails
       catch { Alert.alert('Error','Failed.'); }
       finally { setActionId(null); }
     }}]);
   };
 
+  // Save edited vehicle data
   const doEdit = async () => {
     if (!editItem) return;
     const newPrice = parseFloat(editPrice) || editItem.pricePerDay;
@@ -79,16 +88,19 @@ export default function FleetManagementScreen() {
       formData.append('pricePerDay', newPrice);
       formData.append('features', editFeatures);
       formData.append('isAvailable', editAvail);
+       // Validation: if lowering price, justification doc required
       if (newPrice < editItem.pricePerDay && editDoc) {
         formData.append('priceJustification', { uri: editDoc.uri, name: editDoc.name, type: editDoc.type });
       }
       const r = await api.patch(`/api/admin/vehicles/${editItem._id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' }});
       setVehicles(p => p.map(v => v._id === editItem._id ? r.data.vehicle : v));
       Alert.alert('Success', r.data.message); setEditItem(null);
+      // Backend validation / upload errors
     } catch(e) { Alert.alert('Error', e.response?.data?.message || 'Failed.'); }
     finally { setActionId(null); }
   };
 
+  // Approve / reject owner price proposal
   const resolveProposal = async (id, action) => {
     setActionId('resolve');
     try {
@@ -100,10 +112,13 @@ export default function FleetManagementScreen() {
     finally { setActionId(null); }
   };
 
+  // Pick document from gallery
   const pickDoc = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    // Permission validation
     if (status !== 'granted') return Alert.alert('Permission needed', 'Please grant photo library access.');
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+    // Ensure user selected a file
     if (!result.canceled && result.assets.length > 0) {
       const asset = result.assets[0];
       const ext = asset.uri.split('.').pop();
@@ -111,6 +126,8 @@ export default function FleetManagementScreen() {
     }
   };
 
+  //DELETE!
+  // Delete vehicle permanently
   const doDelete = id => Alert.alert('Delete Vehicle','Permanently remove this vehicle and related records?',[{text:'Cancel',style:'cancel'},{text:'Delete',style:'destructive',onPress:async()=>{
     setActionId(id);
     try { await api.delete(`/api/admin/vehicles/${id}`); setVehicles(p=>p.filter(v=>v._id!==id)); if(detailItem?._id===id)setDetailItem(null); }
@@ -118,8 +135,10 @@ export default function FleetManagementScreen() {
     finally { setActionId(null); }
   }}]);
 
+  // Open edit modal with existing data prefilled
   const openEdit = v => { setEditItem(v); setEditPrice(String(v.pricePerDay||'')); setEditFeatures(v.features||''); setEditAvail(v.isAvailable!==false); setEditDoc(null); };
 
+  // Loading screen while fetching fleet
   if (loading) return <View style={S.center}><ActivityIndicator size="large" color={colors.primary}/></View>;
 
   const StatBox = ({emoji,label,value,color}) => (
