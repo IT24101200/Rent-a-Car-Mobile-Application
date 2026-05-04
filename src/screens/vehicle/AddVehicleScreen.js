@@ -1,3 +1,4 @@
+// adds a vehicle - this is also where validation of the form happens
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Image,
@@ -9,6 +10,7 @@ import { useTheme } from '../../context/ThemeContext';
 import api from '../../api/api';
 import { SIZES, SHADOWS } from '../../theme/theme';
 
+//mx no of images that can be uploaded
 const MAX_IMAGES = 5;
 
 // Document definitions
@@ -20,9 +22,9 @@ const DOCUMENTS = [
 ];
 
 export default function AddVehicleScreen({ navigation }) {
-  const { colors, isDark } = useTheme();
+  const { colors, isDark } = useTheme(); // Get theme colors and dark mode state
   const styles = React.useMemo(() => getStyles(colors), [colors]);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState({ // Store all text form fields
     makeAndModel: '',
     licensePlate: '',
     pricePerDay: '',
@@ -37,41 +39,52 @@ export default function AddVehicleScreen({ navigation }) {
   const [docs, setDocs] = useState({});           // { revenueLicense: {uri,name,type}, ... }
   const [loading, setLoading] = useState(false);
 
+  // Dropdown / selection options
   const TYPES         = ['Sedan', 'SUV', 'Hatchback', 'Luxury', 'Van'];
   const TRANSMISSIONS = ['Automatic', 'Manual'];
   const FUELS         = ['Petrol', 'Diesel', 'Hybrid', 'EV'];
   const SEATS         = ['2', '4', '5', '7'];
 
+   // Function to pick image from gallery
   const pickImage = async (fieldKey = null) => {
+    // Ask permission to access gallery
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       return Alert.alert('Permission needed', 'Please grant photo library access.');
     }
+    // Prevent adding more than max vehicle photos
     if (!fieldKey && images.length >= MAX_IMAGES) {
       return Alert.alert('Limit Reached', `Maximum ${MAX_IMAGES} vehicle photos allowed.`);
     }
+    //open image picker
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
       aspect: fieldKey ? [4, 3] : [16, 9],
       quality: 0.8,
     });
+    // If user selected image
     if (!result.canceled && result.assets.length > 0) {
       const asset = result.assets[0];
       const ext   = asset.uri.split('.').pop();
+      // Create file object for upload
       const file  = { uri: asset.uri, name: `${fieldKey || 'vehicle_' + Date.now()}.${ext}`, type: `image/${ext}` };
       if (fieldKey) {
+         // Save selected document image
         setDocs(prev => ({ ...prev, [fieldKey]: file }));
       } else {
+         // Save selected vehicle image
         setImages(prev => [...prev, file]);
       }
     }
   };
 
+  //remove selected vehicle image
   const removeImage = (index) => {
     setImages(prev => prev.filter((_, i) => i !== index));
   };
 
+  // Validate form before submit
   const validate = () => {
     if (!form.makeAndModel.trim())   return 'Make and Model is required.';
     if (!form.licensePlate.trim())   return 'License Plate is required.';
@@ -81,18 +94,21 @@ export default function AddVehicleScreen({ navigation }) {
       return 'Please enter a valid Year.';
     if (images.length === 0) return 'At least one vehicle photo is required.';
     if (images.length > MAX_IMAGES) return `Maximum ${MAX_IMAGES} vehicle photos allowed.`;
+    // Check required documents uploaded
     const missingDocs = DOCUMENTS.filter(d => d.required && !docs[d.key]);
     if (missingDocs.length > 0)
       return `Missing required documents: ${missingDocs.map(d => d.label).join(', ')}`;
     return null;
   };
 
+  // Submit vehicle to backend
   const handleCreate = async () => {
     const errorMsg = validate();
     if (errorMsg) return Alert.alert('Validation Error', errorMsg);
 
     setLoading(true);
     try {
+       // Create multipart form data
       const formData = new FormData();
       formData.append('makeAndModel',  form.makeAndModel);
       formData.append('licensePlate',  form.licensePlate);
@@ -114,6 +130,7 @@ export default function AddVehicleScreen({ navigation }) {
         formData.append(key, { uri: file.uri, name: file.name, type: file.type });
       });
 
+      // Send POST request to backend
       await api.post('/api/vehicles', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
@@ -130,6 +147,7 @@ export default function AddVehicleScreen({ navigation }) {
       setImages([]);
       setDocs({});
     } catch (err) {
+      // Show backend error
       Alert.alert('Error', err.response?.data?.message || 'Failed to add vehicle.');
     } finally {
       setLoading(false);
@@ -339,6 +357,7 @@ export default function AddVehicleScreen({ navigation }) {
   );
 }
 
+// Styles for UI components
 const getStyles = (COLORS) => StyleSheet.create({
   container:       { flexGrow: 1, backgroundColor: COLORS.background, padding: 20, paddingBottom: 60 },
   greenHeader: { backgroundColor: COLORS.headerGradientStart, paddingTop: 50, paddingBottom: 24, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, marginBottom: 16 , marginHorizontal: -20, marginTop: -20},

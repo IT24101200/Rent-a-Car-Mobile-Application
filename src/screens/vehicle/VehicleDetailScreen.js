@@ -1,3 +1,7 @@
+// Vehicle detail screen for rental app.
+// Shows vehicle photos, specs, reviews, pricing, availability,
+// lets user choose rental dates and proceed to booking/payment.
+// Includes validation for booking dates and KYC verification.
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,

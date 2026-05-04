@@ -1,3 +1,6 @@
+// Home screen for vehicle rental app.
+// Loads accepted vehicles from backend API, supports search/filtering,
+// pull-to-refresh, error handling, and navigation to vehicle details.
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, Image,
@@ -17,7 +20,7 @@ const CARD_WIDTH = (width - 60) / 2; // 2-column grid with gaps
 const FILTERS = ['All', 'SUV', 'Sedan', 'Luxury', 'Electric', 'Sport'];
 
 // ── Vehicle Card Component ─────────────────────────────────────────
-const VehicleCard = ({ item, onPress, colors }) => {
+const VehicleCard = ({ item, onPress, colors }) => {// Reusable card to display each vehicle
   const isBooked = item.isCurrentlyBooked;
   const isAvail = item.isAvailable && !isBooked;
 
@@ -25,7 +28,7 @@ const VehicleCard = ({ item, onPress, colors }) => {
     <TouchableOpacity 
       activeOpacity={0.85} 
       onPress={() => onPress(item)}
-      disabled={!isAvail}
+      disabled={!isAvail}// prevents opening unavailable vehicles
       style={[
         styles.cardWrapper, 
         { backgroundColor: colors.surface, borderColor: colors.border },
@@ -37,7 +40,7 @@ const VehicleCard = ({ item, onPress, colors }) => {
         {item.imageUrl ? (
           <Image source={{ uri: `${BASE_URL}${item.imageUrl}` }} style={styles.cardImage} resizeMode="cover" />
         ) : (
-          <View style={[styles.cardImagePlaceholder, { backgroundColor: colors.surfaceHighlight }]}>
+          <View style={[styles.cardImagePlaceholder, { backgroundColor: colors.surfaceHighlight }]}> // fallback image placeholder if no image exists
             <MaterialCommunityIcons name="car-sports" size={40} color={colors.textMuted} />
           </View>
         )}
@@ -81,13 +84,15 @@ export default function HomeScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
 
+   // Fetch vehicles from backend API
   const fetchVehicles = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
-    setError(null);
+    setError(null);// clear previous errors
     try {
       const res = await api.get('/api/vehicles?status=accepted');
       setVehicles(res.data);
     } catch (err) {
+      // Error handling for timeout or server/network failure
       console.error('Vehicle fetch error:', err.code, err.message, err.response?.status);
       setError(err.code === 'ECONNABORTED'
         ? 'Connection timed out. Is the server running?'
@@ -100,11 +105,14 @@ export default function HomeScreen({ navigation }) {
 
   useEffect(() => { fetchVehicles(); }, [fetchVehicles]);
 
+  // Navigate to details screen
   const handlePressVehicle = (vehicle) => navigation.navigate('VehicleDetail', { vehicle });
 
+  // Filters + search optimization
   const displayVehicles = useMemo(() => {
     return vehicles.filter(v => {
       const query = searchQuery.toLowerCase();
+      // Search validation
       const matchesSearch = v.makeAndModel.toLowerCase().includes(query) || v.licensePlate.toLowerCase().includes(query);
       if (!matchesSearch) return false;
       if (activeFilter === 'All') return true;
@@ -207,6 +215,7 @@ export default function HomeScreen({ navigation }) {
     </View>
   );
 
+  // Loading state
   if (loading) {
     return (
       <View style={[styles.centerScreen, { backgroundColor: colors.background }]}>
@@ -215,6 +224,7 @@ export default function HomeScreen({ navigation }) {
     );
   }
 
+  // Error state UI
   if (error) {
     return (
       <View style={[styles.centerScreen, { backgroundColor: colors.background }]}>
@@ -244,6 +254,7 @@ export default function HomeScreen({ navigation }) {
             <Text style={[styles.emptyText, { color: colors.textMuted }]}>No vehicles match your search.</Text>
           </View>
         }
+        // Pull to refresh
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchVehicles(true)} colors={[colors.primary]} tintColor={colors.primary} />}
         contentContainerStyle={styles.list}
       />
