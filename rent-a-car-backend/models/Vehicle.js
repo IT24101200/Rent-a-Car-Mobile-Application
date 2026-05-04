@@ -1,3 +1,4 @@
+//mongodb models
 const mongoose = require('mongoose');
 
 const vehicleSchema = new mongoose.Schema({
@@ -22,10 +23,12 @@ const vehicleSchema = new mongoose.Schema({
     uploadedAt: { type: Date, default: Date.now }
   }],
   
+
   // Status info
   isAvailable:      { type: Boolean, default: true },
   validationStatus: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' },
   owner:            { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+ 
 
   // Validation tracking
   rejectionReason:  { type: String, trim: true },
