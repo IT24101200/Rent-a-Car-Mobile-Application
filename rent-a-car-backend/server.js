@@ -1,3 +1,4 @@
+/* initializes your web server, manages network requests, and connects the various parts of your application*/
 const express  = require('express');
 const mongoose = require('mongoose');
 const cors     = require('cors');
@@ -436,11 +437,18 @@ app.patch('/api/admin/users/:id/kyc', authMiddleware, adminMiddleware, async (re
 //  VEHICLE ROUTES
 // ═══════════════════════════════════════════════════════════════════
 
+// ============================================================
+// VEHICLE MANAGEMENT MODULE - IT24101129
+// Handles vehicle CRUD, Multer image uploads, price proposals,
+// validation status flow, and active booking delete guard.
+// ============================================================
+
+/*Read: (customers browsing) */
 // GET /api/vehicles  — list all (filter by ?status=pending supported)
 app.get('/api/vehicles', async (req, res) => {
   try {
     const filter = req.query.status ? { validationStatus: req.query.status } : {};
-    const vehicles = await Vehicle.find(filter).lean();
+    const vehicles = await Vehicle.find(filter).lean(); //only accepted vehicles returned: connection point 3
     
     // Check if vehicles are currently physically booked or soon to be booked
     const now = new Date();
@@ -480,6 +488,9 @@ app.get('/api/vehicles', async (req, res) => {
   }
 });
 
+/*Create: Frontend triggers it from AddVehicleScreen using FormData 
+(not JSON — because of file uploads). Multer middleware uploadVehicleFiles runs first, saves files to uploads/,
+then the route handler reads req.files.image and req.files.document to build the path arrays saved into the Vehicle document via Vehicle.create().*/
 // POST /api/vehicles  — add a vehicle (Car Owner, requires auth) — multipart/form-data
 app.post('/api/vehicles', authMiddleware, uploadVehicleFiles, async (req, res) => {
   try {
@@ -516,15 +527,15 @@ app.post('/api/vehicles', authMiddleware, uploadVehicleFiles, async (req, res) =
       images,
       documents,
       isAvailable:      true,
-      validationStatus: 'pending',
+      validationStatus: 'pending',// handoff between validation and vehicle mgmt
       owner:            req.user.id,
     });
     res.status(201).json(vehicle);
   } catch (err) {
     res.status(500).json({ message: 'Error adding vehicle.', error: err.message });
-  }
+  } //error handling
 });
-
+// updates status by validation manager
 // PATCH /api/vehicles/:id/status  — Admin accept/reject (with tracking)
 app.patch('/api/vehicles/:id/status', authMiddleware, adminOrStaffMiddleware(['validation']), async (req, res) => {
   try {
@@ -555,6 +566,7 @@ app.patch('/api/vehicles/:id/status', authMiddleware, adminOrStaffMiddleware(['v
 //  CAR OWNER ROUTES
 // ═══════════════════════════════════════════════════════════════════
 
+/*Read: (owner's own fleet)*/
 // GET /api/owner/vehicles — list only the owner's vehicles
 app.get('/api/owner/vehicles', authMiddleware, ownerMiddleware, async (req, res) => {
   try {
@@ -565,6 +577,7 @@ app.get('/api/owner/vehicles', authMiddleware, ownerMiddleware, async (req, res)
   }
 });
 
+/* Create: Owner edits */
 // PATCH /api/owner/vehicles/:id/availability — toggle vehicle availability
 app.patch('/api/owner/vehicles/:id/availability', authMiddleware, ownerMiddleware, async (req, res) => {
   try {
@@ -648,6 +661,9 @@ app.put('/api/owner/vehicles/:id', authMiddleware, ownerMiddleware, uploadVehicl
     existingVehicle.makeAndModel = makeAndModel;
     existingVehicle.licensePlate = licensePlate.toUpperCase();
     
+    /* if they lower the price, instead of updating directly it creates a priceProposal object
+    and waits for admin approval via PATCH /api/admin/vehicles/:id/price-proposal. 
+    Admin can also validate/reject via the validate endpoint. */
     // Handle Price Proposal
     if (isPriceIncrease) {
       existingVehicle.priceProposal = {
@@ -787,7 +803,7 @@ app.post('/api/bookings', authMiddleware, async (req, res) => {
     // Validate vehicle is active and approved
     const vehicle = await Vehicle.findById(vehicleId);
     if (!vehicle) return res.status(404).json({ message: 'Vehicle not found.' });
-    if (vehicle.validationStatus !== 'accepted')
+    if (vehicle.validationStatus !== 'accepted')// validation again for validmgmt
       return res.status(400).json({ message: 'This vehicle is not approved for booking.' });
     if (!vehicle.isAvailable)
       return res.status(400).json({ message: 'This vehicle is currently unavailable.' });
@@ -1697,7 +1713,7 @@ app.patch('/api/admin/payments/:id/status', authMiddleware, adminOrStaffMiddlewa
     res.status(500).json({ message: 'Error updating payment status.', error: err.message });
   }
 });
-
+// DELETE a vehicle : vehicle mgmt
 // DELETE /api/admin/vehicles/:id — Delete vehicle (only if no active bookings)
 app.delete('/api/admin/vehicles/:id', authMiddleware, adminOrStaffMiddleware(['fleet']), async (req, res) => {
   try {
@@ -1710,9 +1726,9 @@ app.delete('/api/admin/vehicles/:id', authMiddleware, adminOrStaffMiddleware(['f
     });
     if (activeBookings > 0) {
       return res.status(400).json({ message: `Cannot delete — ${activeBookings} active booking(s) exist.` });
-    }
+    } // if theres an active booking wont delete
 
-    await Feedback.deleteMany({ vehicle: req.params.id });
+    await Feedback.deleteMany({ vehicle: req.params.id });// if safe to delete,runs this to clean up orphaned reviews
     await Booking.deleteMany({ vehicle: req.params.id, status: { $in: ['cancelled', 'completed'] } });
     await Vehicle.findByIdAndDelete(req.params.id);
     res.json({ message: 'Vehicle and related records deleted.' });
@@ -1721,7 +1737,7 @@ app.delete('/api/admin/vehicles/:id', authMiddleware, adminOrStaffMiddleware(['f
   }
 });
 
-// PATCH /api/admin/vehicles/:id/validation-note — Add/update validation note
+// ion-note — Add/update validation note
 app.patch('/api/admin/vehicles/:id/validation-note', authMiddleware, adminOrStaffMiddleware(['validation']), async (req, res) => {
   try {
     const { validationNote } = req.body;
