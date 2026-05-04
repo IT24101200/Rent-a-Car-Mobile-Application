@@ -5,12 +5,13 @@ import {
   Modal, TextInput, KeyboardAvoidingView, Platform, ScrollView, StatusBar
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import * as ImagePicker from 'expo-image-picker';
-import { useAuth } from '../../context/AuthContext';
+import * as ImagePicker from 'expo-image-picker'; // Import image picker to select images from gallery
+import { useAuth } from '../../context/AuthContext'; // Import logged-in user context
 import api, { BASE_URL } from '../../api/api';
 import { SIZES, SHADOWS } from '../../theme/theme';
 import { useTheme } from '../../context/ThemeContext';
 
+// Reusable custom UI components
 import Card from '../../components/atoms/Card';
 import Badge from '../../components/atoms/Badge';
 import Button from '../../components/atoms/Button';
@@ -20,17 +21,18 @@ export default function OwnerVehiclesScreen({ navigation }) {
   const { colors } = useTheme();
   const C = colors;
   const styles = React.useMemo(() => getStyles(colors), [colors]);
-  const { user } = useAuth();
-  const [vehicles, setVehicles] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const { user } = useAuth(); // Get current logged in user
+  const [vehicles, setVehicles] = useState([]); // Store owner vehicles list
+  const [loading, setLoading] = useState(true);// main loading state
+  const [refreshing, setRefreshing] = useState(false);// Pull-to-refresh loading state
   const [actionId, setActionId] = useState(null);
-  const [detailItem, setDetailItem] = useState(null);
+  const [detailItem, setDetailItem] = useState(null);// Selected vehicle for detail modal
 
   // Edit Modal State
-  const [editModalVisible, setEditModalVisible] = useState(false);
-  const [editingVehicle, setEditingVehicle] = useState(null);
-  const [editForm, setEditForm] = useState({ makeAndModel: '', licensePlate: '', pricePerDay: '' });
+  const [editModalVisible, setEditModalVisible] = useState(false);// Edit modal visibility
+  const [editingVehicle, setEditingVehicle] = useState(null);  // Vehicle being edited
+  const [editForm, setEditForm] = useState({ makeAndModel: '', licensePlate: '', pricePerDay: '' });// Edit form values
+  // Existing uploaded images already in database
   const [existingImages, setExistingImages] = useState([]); // URLs already on server
   const [newImages, setNewImages]   = useState([]);          // freshly picked {uri,name,type}
   const [removedImages, setRemovedImages] = useState([]);    // URLs to delete on save
@@ -38,8 +40,11 @@ export default function OwnerVehiclesScreen({ navigation }) {
 
   const MAX_IMAGES = 5;
 
+  // Fetch all owner vehicles from backend
   const fetchMyVehicles = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
+   
+    // If request fails (network/server/token issue)
     try {
       const res = await api.get('/api/owner/vehicles');
       setVehicles(res.data);
@@ -53,16 +58,17 @@ export default function OwnerVehiclesScreen({ navigation }) {
 
   useEffect(() => { fetchMyVehicles(); }, [fetchMyVehicles]);
 
+  // Toggle vehicle availability (show/hide listing)
   const toggleAvailability = async (vehicle) => {
     const newStatus = !vehicle.isAvailable;
-    setActionId(vehicle._id);
+    setActionId(vehicle._id);// lock button while request runs
     try {
       const res = await api.patch(`/api/owner/vehicles/${vehicle._id}/availability`, { isAvailable: newStatus });
       setVehicles(prev => prev.map(v => v._id === vehicle._id ? { ...v, isAvailable: res.data.isAvailable } : v));
     } catch {
-      Alert.alert('Error', 'Failed to toggle availability.');
+      Alert.alert('Error', 'Failed to toggle availability.');//error if update failed
     } finally {
-      setActionId(null);
+      setActionId(null);//unlock button
     }
   };
 
