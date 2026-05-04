@@ -390,11 +390,11 @@ export default function MyBookingsScreen({ navigation }) {
 
               {/* Action Buttons for ACTIVE */}
               {activeTab === 'active' && item.status === 'active' && (
-               <View style={styles.actionRow}>
-                 <TouchableOpacity style={[styles.primaryActionBtn, { flex: 2 }]} onPress={() => openAccountability(item, 'checkout')}>
+               <View style={styles.actionGrid}>
+                 <TouchableOpacity style={styles.primaryActionBtn} onPress={() => openAccountability(item, 'checkout')}>
                     <Text style={styles.primaryActionText}>End Trip</Text>
                  </TouchableOpacity>
-                 <TouchableOpacity style={[styles.rescheduleBtn, { flex: 1, marginLeft: 10 }]} onPress={() => openExtend(item)}>
+                 <TouchableOpacity style={styles.rescheduleBtn} onPress={() => openExtend(item)}>
                     <Text style={styles.rescheduleText}>Extend</Text>
                  </TouchableOpacity>
                </View>
@@ -783,12 +783,12 @@ const getStyles = (C) => StyleSheet.create({
   systemNoticeText:  { fontSize: 13, color: C.error, lineHeight: 20, fontWeight: '500' },
 
   actionRow:       { borderTopWidth: 1, borderTopColor: C.border, paddingTop: 16, marginTop: 12 },
-  actionGrid:      { flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.border, paddingTop: 16, marginTop: 12, gap: 12 },
-  primaryActionBtn:{ flex: 1, backgroundColor: C.primary, paddingVertical: 14, borderRadius: 10, alignItems: 'center', ...SHADOWS.float },
+  actionGrid:      { flexDirection: 'column', alignItems: 'stretch', borderTopWidth: 1, borderTopColor: C.border, paddingTop: 16, marginTop: 12, gap: 12 },
+  primaryActionBtn:{ backgroundColor: C.primary, paddingVertical: 14, borderRadius: 10, alignItems: 'center', ...SHADOWS.float },
   primaryActionText:{ color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
-  cancelTripBtn:   { flex: 1, backgroundColor: C.surface, paddingVertical: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: C.error },
+  cancelTripBtn:   { backgroundColor: C.surface, paddingVertical: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: C.error },
   cancelTripText:  { color: C.error, fontWeight: '800', fontSize: 14 },
-  rescheduleBtn:   { flex: 1.5, backgroundColor: C.surfaceHighlight, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+  rescheduleBtn:   { backgroundColor: C.surfaceHighlight, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
   rescheduleText:  { color: C.textPrimary, fontWeight: '800', fontSize: 14 },
   feedbackBtn:     { backgroundColor: C.surfaceHighlight, paddingVertical: 14, borderRadius: 10, alignItems: 'center' },
   feedbackBtnText: { color: C.textPrimary, fontWeight: '800', fontSize: 14 },

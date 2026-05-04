@@ -150,13 +150,13 @@ export default function AllBookingsScreen() {
           <Text style={S.cardId}>ID: {item._id.slice(-6).toUpperCase()}</Text>
           <View style={{flexDirection:'row',gap:8}}>
             {canManage && !['cancelled','completed'].includes(item.status) && (
-              <Button label="✏️ Edit" size="compact" variant="ghost" onPress={()=>openEdit(item)} style={{borderWidth: 1, borderColor: colors.primary+'30'}} />
+              <Button label="✏️ Edit" size="compact" variant="ghost" onPress={()=>openEdit(item)} style={{flex: 1, borderWidth: 1, borderColor: colors.primary+'30'}} />
             )}
             {canManage && !['cancelled','completed'].includes(item.status) && (
-              <Button label="Cancel" size="compact" variant="danger" onPress={()=>doForceCancel(item._id)} disabled={actionId===item._id} />
+              <Button label="Cancel" size="compact" variant="danger" onPress={()=>doForceCancel(item._id)} disabled={actionId===item._id} style={{flex: 1}} />
             )}
             {canManage && ['cancelled','completed'].includes(item.status) && (
-              <Button label="🗑️" size="compact" variant="ghost" onPress={()=>doDelete(item._id)} disabled={actionId===item._id} textStyle={{color: colors.error}} style={{backgroundColor: colors.error+'15'}} />
+              <Button label="🗑️ Delete" size="compact" variant="ghost" onPress={()=>doDelete(item._id)} disabled={actionId===item._id} textStyle={{color: colors.error}} style={{flex: 1, backgroundColor: colors.error+'15'}} />
             )}
           </View>
         </View>
@@ -270,18 +270,6 @@ export default function AllBookingsScreen() {
               </View>
               <Button label="Update Status" onPress={doChangeStatus} loading={actionId==='edit'} disabled={actionId==='edit'} />
 
-              <View style={S.divider}/>
-
-              <Text style={S.dlLabel}>Reschedule Dates</Text>
-              <TouchableOpacity style={S.dateBtn} onPress={()=>setPickStart(true)}>
-                <Text style={S.dateBtnTxt}>📅 Start: {editStart.toLocaleDateString()}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={S.dateBtn} onPress={()=>setPickEnd(true)}>
-                <Text style={S.dateBtnTxt}>📅 End: {editEnd.toLocaleDateString()}</Text>
-              </TouchableOpacity>
-              {pickStart && <DateTimePicker value={editStart} mode="date" onChange={(e,d)=>{setPickStart(false);if(d)setEditStart(d);}}/>}
-              {pickEnd && <DateTimePicker value={editEnd} mode="date" onChange={(e,d)=>{setPickEnd(false);if(d)setEditEnd(d);}}/>}
-              <Button label="Reschedule & Recalculate" onPress={doReschedule} loading={actionId==='edit'} disabled={actionId==='edit'} style={{ backgroundColor: colors.success, marginTop: 12 }} />
             </ScrollView>
             <Button label="Cancel" variant="ghost" onPress={()=>setEditItem(null)} style={{ marginTop: 8 }} />
           </View>
@@ -310,7 +298,7 @@ const getStyles = (C, isDark) => StyleSheet.create({
   cardDetail: { fontSize:13, color:C.textSecondary, marginBottom:4, fontWeight:'500' },
   cardPrice: { fontSize:18, fontWeight:'900', color:C.success, marginTop:6, letterSpacing:-0.5 },
   refundBadge: { flexDirection:'row', alignItems:'center', marginTop:10, padding:10, borderRadius:10 },
-  cardActions: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', borderTopWidth:1, borderTopColor:C.border, paddingTop:14, marginTop:12 },
+  cardActions: { flexDirection:'column', alignItems:'stretch', borderTopWidth:1, borderTopColor:C.border, paddingTop:14, marginTop:12, gap:12 },
   cardId: { color:C.textMuted, fontSize:12, fontWeight:'700', letterSpacing:1 },
   empty: { alignItems:'center', marginTop:60, paddingHorizontal:20 },
   emptyTitle: { fontSize:20, fontWeight:'900', color:C.textPrimary, marginTop:12 },
