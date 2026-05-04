@@ -47,6 +47,9 @@ export default function AllBookingsScreen() {
   }, []);
   useEffect(() => { fetchBookings(); }, [fetchBookings]);
 
+  // Memoized filtered data: 
+  // 1. Filters by selected 'tab' status (e.g. 'all', 'confirmed')
+  // 2. Filters by 'search' text (matching customer name, vehicle model, or booking ID)
   const filtered = useMemo(() => {
     let d = bookings;
     if (tab !== 'all') d = d.filter(b => b.status === tab);
@@ -57,18 +60,21 @@ export default function AllBookingsScreen() {
     return d;
   }, [bookings, tab, search]);
 
+  // Computed statistics for the top banner
   const stats = useMemo(() => ({
-    total: bookings.length,
-    active: bookings.filter(b => b.status === 'active').length,
-    revenue: bookings.filter(b => b.status !== 'cancelled').reduce((s, b) => s + (b.totalPrice || 0), 0),
-    cancelRate: bookings.length ? Math.round(bookings.filter(b => b.status === 'cancelled').length / bookings.length * 100) : 0,
+    total: bookings.length, // Total bookings in system
+    active: bookings.filter(b => b.status === 'active').length, // Cars currently on the road
+    revenue: bookings.filter(b => b.status !== 'cancelled').reduce((s, b) => s + (b.totalPrice || 0), 0), // Total non-cancelled revenue
+    cancelRate: bookings.length ? Math.round(bookings.filter(b => b.status === 'cancelled').length / bookings.length * 100) : 0, // Percentage of cancelled bookings
   }), [bookings]);
 
   const SC = { confirmed:{bg:colors.info+'20',tx:colors.info}, active:{bg:colors.success+'20',tx:colors.success}, returning:{bg:colors.warning+'20',tx:colors.warning}, completed:{bg:colors.textSecondary+'20',tx:colors.textSecondary}, cancelled:{bg:colors.error+'20',tx:colors.error}, pending:{bg:colors.warning+'20',tx:colors.warning} };
   const fmt = d => new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
 
+  // Force Cancellation: Allows Admin to bypass standard rules and unilaterally cancel any booking
   const doForceCancel = id => Alert.alert('Force Cancel','Cancel without user consent?',[{text:'Back',style:'cancel'},{text:'Confirm',style:'destructive',onPress:async()=>{setActionId(id);try{const r=await api.patch(`/api/admin/bookings/${id}/force-cancel`);setBookings(p=>p.map(b=>b._id===id?{...b,status:'cancelled',refundStatus:'pending'}:b));}catch{Alert.alert('Error','Failed.');}finally{setActionId(null);}}}]);
 
+  // Change Status: Submits the updated status (e.g. from the Edit Modal) to the backend
   const doChangeStatus = async () => {
     if (!editItem||!editStatus) return;
     setActionId('edit');

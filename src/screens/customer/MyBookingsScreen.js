@@ -94,6 +94,8 @@ export default function MyBookingsScreen({ navigation }) {
   if (activeTab === 'history') displayData = historyBookingsArr;
 
   // ── Actions ───────────────────────────────────────────────────────
+  
+  // Cancel Booking: Asks for confirmation, then hits the PATCH /cancel route
   const cancelBooking = (bookingId) => {
     Alert.alert('Cancel Trip', 'Are you sure you want to cancel this booking?', [
       { text: 'Keep It', style: 'cancel' },
@@ -118,6 +120,7 @@ export default function MyBookingsScreen({ navigation }) {
     setNewEndDate(new Date(booking.endDate));
   };
 
+  // Reschedule Booking: Sends the new dates to the backend. The backend will re-check overlaps.
   const submitReschedule = async () => {
     setRescheduling(true);
     const msDiff = newEndDate.getTime() - newStartDate.getTime();
@@ -147,6 +150,7 @@ export default function MyBookingsScreen({ navigation }) {
     }
   };
 
+  // Submit Feedback: First posts the JSON feedback, then sequentially uploads photos via Multer
   const submitFeedback = async () => {
     if (!feedback.trim()) { Alert.alert('Validation', 'Please write your feedback.'); return; }
     setSubmitting(true);
@@ -173,6 +177,8 @@ export default function MyBookingsScreen({ navigation }) {
   };
 
   // ── Accountability Flow ──────────────────────────────────────────
+  
+  // Prepares the modal for either checking in (start trip) or checking out (end trip)
   const openAccountability = (booking, type) => {
     setAccountabilityModal(booking);
     setActionType(type);
@@ -207,6 +213,8 @@ export default function MyBookingsScreen({ navigation }) {
     );
   };
 
+  // Submits the check-in or check-out details. Constructs a FormData object
+  // to send the odometer integer and conditionPhoto image file to the respective PATCH route.
   const submitAccountability = async () => {
     if (!odometer || isNaN(odometer)) return Alert.alert('Invalid Input', 'Please enter a valid numeric odometer reading.');
     if (!photoUri) return Alert.alert('Photo Required', 'You must upload a dashboard/condition photo.');
@@ -239,6 +247,8 @@ export default function MyBookingsScreen({ navigation }) {
     setExtendEndDate(new Date(booking.endDate));
   };
 
+  // Submit Extension: Proactively pushes the end date further out.
+  // Backend will charge extra and check if the new timeframe overlaps another booking.
   const submitExtend = async () => {
     if (extendEndDate <= new Date(extendModal.endDate)) {
       return Alert.alert('Invalid Date', 'The new end date must be after your current end date.');

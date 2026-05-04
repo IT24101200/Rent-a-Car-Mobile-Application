@@ -793,7 +793,9 @@ app.post('/api/bookings', authMiddleware, async (req, res) => {
       return res.status(400).json({ message: 'This vehicle is currently unavailable.' });
 
     // ── Overlap Check (Exact Time-based) ────────────────────────
-    // Reject if any confirmed booking overlaps the exact requested time window
+    // Reject if any confirmed booking overlaps the exact requested time window.
+    // The `$or` condition ensures that the new booking's start time isn't before an existing booking's end time
+    // AND the new booking's end time isn't after an existing booking's start time (a true overlap).
     const conflict = await Booking.findOne({
       vehicle: vehicleId,
       status: { $in: ['confirmed', 'active', 'returning'] },
@@ -971,10 +973,10 @@ app.patch('/api/bookings/:id/checkout', authMiddleware, upload.single('condition
     
     // Check for late return (Option A: 2 hours grace period)
     const msLate = now.getTime() - new Date(booking.endDate).getTime();
-    if (msLate > 2 * 60 * 60 * 1000) {
+    if (msLate > 2 * 60 * 60 * 1000) { // If late by more than 2 hours
       // Math.ceil converts hours to full extra days. (e.g. 3 hours late = 1 day, 25 hours late = 2 days)
       const extraDaysToCharge = Math.ceil(msLate / (24 * 60 * 60 * 1000));
-      const penalty = extraDaysToCharge * (booking.vehicle.pricePerDay || 0);
+      const penalty = extraDaysToCharge * (booking.vehicle.pricePerDay || 0); // Apply full day rate per day late
       
       booking.additionalCharges = (booking.additionalCharges || 0) + penalty;
       booking.paymentStatus = 'pending_extra_payment';
@@ -1017,7 +1019,9 @@ app.patch('/api/bookings/:id/extend', authMiddleware, async (req, res) => {
       return res.status(400).json({ message: 'New end date must be after the current end date.' });
     }
 
-    // Check availability against other bookings
+    // Check availability against other bookings.
+    // Query checks if any other booking starts BEFORE the new requested end date
+    // and ends AFTER the current booking's original end date.
     const conflicting = await Booking.findOne({
       vehicle: booking.vehicle._id,
       status: { $in: ['confirmed', 'active'] },
